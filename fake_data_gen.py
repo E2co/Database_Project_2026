@@ -252,14 +252,15 @@ major_to_faculty = {
     for major in majors
 }
 
-f = open("OURVLE_Clone_Database.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
 
-# Lecturers
+
+# Lecturers ────────────────────────────────────────────────────────────────────
 lecturer_ids = []
 lecturer_dept = {}
 lecturer_courses_count = {}
 
+f = open("OURVLE_Clone_Lecturers.sql", "w")
+f.write("USE OURVLECloneDatabase;\n\n")
 f.write(" ──── Lecturers ────────────────────────────────────────────────────────────────────\n")
 for n in range(1, NUM_LECTURERS + 1):
     name = fake.name().replace("'", "''")
@@ -270,8 +271,10 @@ for n in range(1, NUM_LECTURERS + 1):
     lecturer_courses_count[lid] = 0
     f.write(f"INSERT INTO Lecturer VALUES ('{lid}', '{name}', '{dept}');\n")
 f.write("\n")
+f.close()
 
-# Courses
+
+# Courses ────────────────────────────────────────────────────────────────────
 course_ids = [f"C{str(cid).zfill(3)}" for cid in range(1, NUM_COURSES + 1)]
 shuffled_courses = course_ids[:]
 random.shuffle(shuffled_courses)
@@ -288,6 +291,8 @@ for cid in shuffled_courses[NUM_LECTURERS:]:
     course_lecturer[cid] = lid
     lecturer_courses_count[lid] += 1
 
+f = open("OURVLE_Clone_Courses.sql", "w")
+f.write("USE OURVLECloneDatabase;\n\n")
 f.write(" ──── Courses ────────────────────────────────────────────────────────────────────\n")
 assigned_codes = set()
 course_faculty = {}
@@ -316,12 +321,16 @@ for cid in course_ids:
 
     f.write(f"INSERT INTO Course VALUES ('{cid}', '{name}', '{code}', {lid});\n")
 f.write("\n")
+f.close()
 
-# Students
+
+# Students ────────────────────────────────────────────────────────────────────
 all_majors = [m for majors in MAJORS.values() for m in majors]
 student_ids = list(range(630160000, 630160000 + NUM_STUDENTS))
 student_major = {}
 
+f = open("OURVLE_Clone_Students.sql", "w")
+f.write("USE OURVLECloneDatabase;\n\n")
 f.write(" ──── Students ────────────────────────────────────────────────────────────────────\n")
 for sid in student_ids:
     first = fake.first_name().replace("'", "''")
@@ -330,8 +339,10 @@ for sid in student_ids:
     student_major[sid] = major
     f.write(f"INSERT INTO Student VALUES ({sid}, '{first}', '{last}', '{major}', '{ENROLLMENT_DATE}');\n")
 f.write("\n")
+f.close()
 
-# Enrollments
+
+# Enrollments ────────────────────────────────────────────────────────────────────
 student_courses = {sid: set() for sid in student_ids}
 course_enrollment_count = {cid: 0 for cid in course_ids}
 
@@ -369,13 +380,17 @@ for sid in student_ids:
             course_enrollment_count[cid] += 1
         attempts += 1
 
+f = open("OURVLE_Clone_Enrollments.sql", "w")
+f.write("USE OURVLECloneDatabase;\n\n")
 f.write("-- Enrollments\n")
 for sid, courses in student_courses.items():
     for cid in courses:
         f.write(f"INSERT INTO Enrollment VALUES ({sid}, '{cid}');\n")
 f.write("\n")
+f.close()
 
-# Calendar Events 
+
+# Calendar Events ────────────────────────────────────────────────────────────────────
 EVENT_TYPES = ["Lab", "Assignment Due", "Exam"]
 
 SEMESTER_START = datetime.date(2024, 9, 2)
@@ -385,6 +400,8 @@ def random_date(start, end):
     delta = end - start
     return start + datetime.timedelta(days=random.randint(0, delta.days))
 
+f = open("OURVLE_Clone_Calendar_Events.sql", "w")
+f.write("USE OURVLECloneDatabase;\n\n")
 f.write(" ──── Calendar Events ────────────────────────────────────────────────────────────────────\n")
 event_id = 1
 course_events = {cid: [] for cid in course_ids} # track which events belong to which course
@@ -403,12 +420,16 @@ for cid in course_ids:
         course_events[cid].append(event_id)
         event_id += 1
 f.write("\n")
+f.close()
 
-# Forums 
+
+# Forums ────────────────────────────────────────────────────────────────────
 FORUM_TITLES = [
     "General Discussion", "Resources & Links",
     "Project Discussion", "Weekly Q&A"]
 
+f = open("OURVLE_Clone_Forums.sql", "w")
+f.write("USE OURVLECloneDatabase;\n\n")
 f.write(" ──── Discussion Forums ────────────────────────────────────────────────────────────────────\n")
 forum_id = 1
 course_forums = {cid: [] for cid in course_ids}   # course_id -> [forum_ids]
@@ -422,14 +443,18 @@ for cid in course_ids:
         course_forums[cid].append(forum_id)
         forum_id += 1
 f.write("\n")
+f.close()
 
-# Discussion Threads and Replies
+
+# Discussion Threads and Replies ────────────────────────────────────────────────────────────────────
 student_courses_by_course = {}
 for sid, courses in student_courses.items():
     for cid in courses:
         student_courses_by_course.setdefault(cid, []).append(sid)
 
-f.write("-- Discussion Threads\n")
+f = open("OURVLE_Clone_Discussion_Threads.sql", "w")
+f.write("USE OURVLECloneDatabase;\n\n")
+f.write("-- Discussion Threads ────────────────────────────────────────────────────────────────────\n")
 thread_id  = 1
 # track top-level threads per forum so replies can reference them
 forum_threads = {}   # forum_id -> [thread_ids of top-level posts]
@@ -479,6 +504,6 @@ for cid in course_ids:
                 thread_id += 1
 
 f.write("\n")
-
 f.close()
+
 print("Completed!!!, Check 'OURVLE_Clone_Database.sql' and run it.")
