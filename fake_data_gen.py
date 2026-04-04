@@ -1,5 +1,6 @@
 import random
 from faker import Faker
+import datetime
 
 # Create an instance of the Faker class
 fake = Faker()
@@ -259,7 +260,7 @@ lecturer_ids = []
 lecturer_dept = {}
 lecturer_courses_count = {}
 
-f.write("--- Lecturers\n")
+f.write(" ──── Lecturers ────────────────────────────────────────────────────────────────────\n")
 for n in range(1, NUM_LECTURERS + 1):
     name = fake.name().replace("'", "''")
     dept = random.choice(dept_names)
@@ -287,7 +288,7 @@ for cid in shuffled_courses[NUM_LECTURERS:]:
     course_lecturer[cid] = lid
     lecturer_courses_count[lid] += 1
 
-f.write("-- Courses\n")
+f.write(" ──── Courses ────────────────────────────────────────────────────────────────────\n")
 assigned_codes = set()
 course_faculty = {}
 
@@ -321,7 +322,7 @@ all_majors = [m for majors in MAJORS.values() for m in majors]
 student_ids = list(range(630160000, 630160000 + NUM_STUDENTS))
 student_major = {}
 
-f.write("-- Students\n")
+f.write(" ──── Students ────────────────────────────────────────────────────────────────────\n")
 for sid in student_ids:
     first = fake.first_name().replace("'", "''")
     last = fake.last_name().replace("'", "''")
@@ -373,12 +374,111 @@ for sid, courses in student_courses.items():
     for cid in courses:
         f.write(f"INSERT INTO Enrollment VALUES ({sid}, '{cid}');\n")
 f.write("\n")
+
+# Calendar Events 
+EVENT_TYPES = ["Lab", "Assignment Due", "Exam"]
+
+SEMESTER_START = datetime.date(2024, 9, 2)
+SEMESTER_END   = datetime.date(2024, 12, 20)
+
+def random_date(start, end):
+    delta = end - start
+    return start + datetime.timedelta(days=random.randint(0, delta.days))
+
+f.write(" ──── Calendar Events ────────────────────────────────────────────────────────────────────\n")
+event_id = 1
+course_events = {cid: [] for cid in course_ids} # track which events belong to which course
+
+for cid in course_ids:
+    num_events = random.randint(5, 15) # each course gets 5-15 events
+    for _ in range(num_events):
+        etype = random.choice(EVENT_TYPES)
+        edate = random_date(SEMESTER_START, SEMESTER_END)
+        title = f"{etype} - {fake.bs().title()}".replace("'", "''")
+        desc  = fake.sentence(nb_words=10).replace("'", "''")
+        f.write(
+            f"INSERT INTO Calendar_Event VALUES "
+            f"({event_id}, '{cid}', '{title}', '{desc}', '{etype}', '{edate}');\n"
+        )
+        course_events[cid].append(event_id)
+        event_id += 1
+f.write("\n")
+
+# Forums 
+FORUM_TITLES = [
+    "General Discussion", "Resources & Links",
+    "Project Discussion", "Weekly Q&A"]
+
+f.write(" ──── Discussion Forums ────────────────────────────────────────────────────────────────────\n")
+forum_id = 1
+course_forums = {cid: [] for cid in course_ids}   # course_id -> [forum_ids]
+
+for cid in course_ids:
+    num_forums = random.randint(2, 5)
+    chosen_titles = random.sample(FORUM_TITLES, min(num_forums, len(FORUM_TITLES)))
+    for title in chosen_titles:
+        safe_title = title.replace("'", "''")
+        f.write(f"INSERT INTO Discussion_Forum VALUES ('{cid}', {forum_id}, '{safe_title}');\n")
+        course_forums[cid].append(forum_id)
+        forum_id += 1
+f.write("\n")
+
+# Discussion Threads and Replies
+student_courses_by_course = {}
+for sid, courses in student_courses.items():
+    for cid in courses:
+        student_courses_by_course.setdefault(cid, []).append(sid)
+
+f.write("-- Discussion Threads\n")
+thread_id  = 1
+# track top-level threads per forum so replies can reference them
+forum_threads = {}   # forum_id -> [thread_ids of top-level posts]
+
+all_user_ids = [str(sid) for sid in student_ids] + lecturer_ids  # pool of valid authors
+
+for cid in course_ids:
+    enrolled_students = list(student_courses_by_course.get(cid, []))
+    lecturer_id = course_lecturer[cid]
+
+    for fid in course_forums[cid]:
+        forum_threads[fid] = []
+        num_threads = random.randint(3, 10)   # top-level posts per forum
+
+        for _ in range(num_threads):
+            # Pick author from enrolled students or the lecturer
+            if enrolled_students and random.random() < 0.85:
+                author = random.choice(enrolled_students)
+            else:
+                author = lecturer_id
+
+            content      = fake.paragraph(nb_sentences=3).replace("'", "''")
+            created_date = random_date(SEMESTER_START, SEMESTER_END)
+            # NULL for parent_thread_id since this is a top-level post
+            f.write(
+                f"INSERT INTO Discussion_Thread VALUES "
+                f"({thread_id}, {fid}, '{content}', '{created_date}', '{author}', NULL);\n"
+            )
+            forum_threads[fid].append(thread_id)
+            thread_id += 1
+
+        # Replies — each top-level thread gets 0-5 replies
+        for parent_tid in forum_threads[fid]:
+            num_replies = random.randint(0, 5)
+            for _ in range(num_replies):
+                if enrolled_students and random.random() < 0.85:
+                    author = random.choice(enrolled_students)
+                else:
+                    author = lecturer_id
+
+                content      = fake.paragraph(nb_sentences=2).replace("'", "''")
+                created_date = random_date(SEMESTER_START, SEMESTER_END)
+                f.write(
+                    f"INSERT INTO Discussion_Thread VALUES "
+                    f"({thread_id}, {fid}, '{content}', '{created_date}', '{author}', {parent_tid});\n"
+                )
+                thread_id += 1
+
+f.write("\n")
+
 f.close()
 print("Completed!!!, Check 'OURVLE_Clone_Database.sql' and run it.")
-
-# ── Sanity check ──────────────────────────────────────────────────────────────
-total_enrollments = sum(course_enrollment_count.values())
-avg_enrollment    = total_enrollments / NUM_COURSES
-print(f"Total enrollments : {total_enrollments:,}")
-print(f"Average per course: {avg_enrollment:.1f}")
-print(f"Courses below 10  : {sum(1 for v in course_enrollment_count.values() if v < 10)}")
