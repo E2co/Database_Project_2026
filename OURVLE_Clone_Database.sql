@@ -1,6 +1,16 @@
 CREATE DATABASE IF NOT EXISTS OURVLECloneDatabase;
 USE OURVLECloneDatabase;
 
+CREATE TABLE User(
+    UserID              varchar(10),
+    FirstName           varchar(50),
+    LastName            varchar(50),
+    Email               varchar(100),
+    Role                varchar(10),
+    Password            varchar(255),
+    DateCreated         date
+);
+
 CREATE TABLE Lecturer(
     LecturerID          varchar(10),
     Name                varchar(100),

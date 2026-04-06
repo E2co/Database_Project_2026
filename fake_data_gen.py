@@ -5,6 +5,148 @@ import datetime
 # Create an instance of the Faker class
 fake = Faker()
 
+# ─── REALISTIC ACADEMIC CONTENT GENERATORS ───────────────────────────────────
+
+# Event descriptions for different event types
+EVENT_DESCRIPTIONS = {
+    "Lecture": [
+        "Topics will include key concepts and practical applications.",
+        "Required attendance for comprehensive understanding of material.",
+        "Bring notes and any reference materials you may need.",
+        "Interactive session with live examples and case studies.",
+        "Focus on theoretical foundations and real-world applications.",
+        "Covers material from chapters specified in syllabus.",
+        "Attendance will be taken. Questions encouraged.",
+        "Part of the core material for the mid-term assessment.",
+    ],
+    "Lab": [
+        "Hands-on practical session with guided exercises.",
+        "Come prepared with assignment materials from previous lesson.",
+        "Work in groups to complete lab experiments and analysis.",
+        "Results should be documented for your submission.",
+        "Attendance is mandatory for grading purposes.",
+        "Bring your field notebook and measurement tools.",
+        "Learn practical skills applicable to real-world scenarios.",
+        "Submit lab report within one week of completion.",
+    ],
+    "Assignment Due": [
+        "Submit completed assignment through the course portal.",
+        "Late submissions will incur a 10% penalty per day.",
+        "Please follow the formatting guidelines provided.",
+        "Show all work and justify your reasoning.",
+        "Refer to the rubric for grading criteria.",
+        "This counts as 15% of your final grade.",
+        "Group work permitted; cite all sources properly.",
+        "Email professor with any technical submission issues.",
+    ],
+    "Exam": [
+        "Comprehensive exam covering all course material to date.",
+        "Expected duration: 2 hours. Bring student ID.",
+        "Non-programmable calculator permitted.",
+        "Closed book unless noted otherwise in syllabus.",
+        "Review session scheduled for the day before.",
+        "Format: Multiple choice, short answer, and essay questions.",
+        "Arrive 15 minutes early to your assigned seat.",
+        "This exam comprises 30% of your final grade.",
+    ],
+    "Tutorial": [
+        "Review of recent lecture content with Q&A.",
+        "Instructor will work through sample problems step-by-step.",
+        "Bring questions from assignments or lectures.",
+        "Optional: bring your draft work for feedback.",
+        "Recording will be available for students unable to attend.",
+        "Focus on commonly misunderstood concepts.",
+        "Opportunity to clarify any confusing material before assessment.",
+        "Highly recommended for students seeking clarification.",
+    ]
+}
+
+# Generic academic discussion starters for forums
+DISCUSSION_STARTERS = [
+    "Does anyone have suggestions on how to approach this concept?",
+    "I found an interesting resource on this topic. Check it out: {topic}",
+    "Can someone explain how {topic} applies to real-world scenarios?",
+    "What are the key differences between {topic} and {related_topic}?",
+    "For the assignment, how did everyone interpret this requirement?",
+    "I'm struggling with step {step} of the assignment. Any tips?",
+    "Great lecture today. I'd like to discuss {topic} further.",
+    "Does anyone want to form a study group for the upcoming exam?",
+    "I found an error in my work. Here's what I did differently...",
+    "Can we discuss the pros and cons of this {topic}?",
+    "The reading for this week touched on {topic}. Thoughts?",
+    "Looking for clarification on the lab procedure from last week.",
+    "Has anyone completed the research task yet? Results being shared?",
+    "I have a different perspective on {topic}. Thoughts?",
+    "Quick question about the grading criteria for the assignment.",
+]
+
+# Discussion responses (common academic replies)
+DISCUSSION_RESPONSES = [
+    "Good question! I think the key is understanding {concept}. That's essential.",
+    "I approached it the same way. The important thing is {key_point}.",
+    "I had the same confusion at first. What helped me was {solution}.",
+    "Great point! That's a really insightful observation about {topic}.",
+    "I appreciate the clarity. This connects well with what we discussed previously.",
+    "Excellent summary! You've captured the main points well.",
+    "Your approach is solid. Another way to think about it is through {concept}.",
+    "I respectfully disagree. I believe there's a different perspective because of the fundamentals.",
+    "This is a great area of discussion. The key distinction is {key_point}.",
+    "Couldn't have said it better myself. Well explained!",
+]
+
+# Topic-specific keywords and concepts (used in content generation)
+TOPIC_KEYWORDS = {
+    "COMP": ["algorithm", "data structure", "optimization", "complexity", "implementation"],
+    "MATH": ["theorem", "proof", "equation", "formula", "problem set"],
+    "PHYS": ["experiment", "hypothesis", "observation", "measurement", "pendulum"],
+    "BIOL": ["species", "ecosystem", "organism", "cell", "reproduction"],
+    "CHEM": ["reaction", "compound", "element", "molecule", "titration"],
+    "GEOG": ["region", "climate", "population", "infrastructure", "geospatial"],
+    "ECON": ["supply", "demand", "market", "GDP", "inflation"],
+    "PSYC": ["behavior", "cognition", "stimulus", "response", "development"],
+    "SOCI": ["society", "culture", "norms", "institutions", "social change"],
+    "EENG": ["circuit", "voltage", "current", "impedance", "signal"],
+    "CENG": ["structure", "load", "foundation", "soil", "hydraulics"],
+    "MSBM": ["profit", "revenue", "strategy", "management", "stakeholder"],
+    "GOVN": ["policy", "legislation", "governance", "rights", "institution"],
+    "MED": ["diagnosis", "treatment", "symptoms", "patient", "clinical"],
+    "NURS": ["care", "patient", "vital signs", "medication", "recovery"],
+    "PHAR": ["medication", "dosage", "interaction", "side effects", "pharmacokinetics"],
+}
+
+# Function to generate realistic event descriptions
+def generate_event_description(event_type, dept_code):
+    descriptions = EVENT_DESCRIPTIONS.get(event_type, EVENT_DESCRIPTIONS["Lecture"])
+    base_desc = random.choice(descriptions)
+    return base_desc.replace("'", "''")
+
+# Function to generate realistic forum thread content
+def generate_forum_thread(dept_code):
+    keywords = TOPIC_KEYWORDS.get(dept_code, ["topic", "concept", "material"])
+    topic = random.choice(keywords)
+    related = random.choice(keywords)
+    
+    starter = random.choice(DISCUSSION_STARTERS)
+    content = starter.format(topic=topic, related_topic=related, step=random.randint(1, 5))
+    return content.replace("'", "''")
+
+# Function to generate realistic forum replies
+def generate_forum_reply(dept_code):
+    keywords = TOPIC_KEYWORDS.get(dept_code, ["topic", "concept", "material"])
+    concept = random.choice(keywords)
+    key_point = random.choice(["the methodology", "the approach", "the distinction", "the foundation"])
+    solution = random.choice(["reviewing the textbook", "thinking about it differently", "referring back to the lecture notes"])
+    
+    response = random.choice(DISCUSSION_RESPONSES)
+    content = response.format(concept=concept, key_point=key_point, solution=solution, topic=concept)
+    return content.replace("'", "''")
+
+# ─── CONFIGURATION ───────────────────────────────────────────────────────────
+# Set REGENERATE_MODE to:
+#   "all"          - regenerate all SQL files (Lecturers, Courses, Students, Enrollments, Calendar, Forums, Threads)
+#   "forums_only"  - regenerate only Calendar Events, Forums, and Discussion Threads (faster, keeps existing tables)
+REGENERATE_MODE = "all"
+
 NUM_LECTURERS = 750
 NUM_COURSES = 3400
 NUM_STUDENTS = 150000
@@ -258,10 +400,8 @@ major_to_faculty = {
 lecturer_ids = []
 lecturer_dept = {}
 lecturer_courses_count = {}
+lecturer_data = []  # Collect data before writing to file
 
-f = open("OURVLE_Clone_Lecturers.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
-f.write(" ──── Lecturers ────────────────────────────────────────────────────────────────────\n")
 for n in range(1, NUM_LECTURERS + 1):
     name = fake.name().replace("'", "''")
     dept = random.choice(dept_names)
@@ -269,9 +409,19 @@ for n in range(1, NUM_LECTURERS + 1):
     lecturer_ids.append(lid)
     lecturer_dept[lid] = dept
     lecturer_courses_count[lid] = 0
-    f.write(f"INSERT INTO Lecturer VALUES ('{lid}', '{name}', '{dept}');\n")
-f.write("\n")
-f.close()
+    lecturer_data.append(f"INSERT INTO Lecturer VALUES ('{lid}', '{name}', '{dept}');\n")
+
+if REGENERATE_MODE != "forums_only":
+    f = open("OURVLE_Clone_Lecturers.sql", "w")
+    f.write("USE OURVLECloneDatabase;\n")
+    f.write("TRUNCATE TABLE Lecturer;\n\n")
+    f.write(" ──── Lecturers ────────────────────────────────────────────────────────────────────\n")
+    f.writelines(lecturer_data)
+    f.write("\n")
+    f.close()
+    print("✓ Generated OURVLE_Clone_Lecturers.sql")
+else:
+    print("⊘ Skipped OURVLE_Clone_Lecturers.sql (forums_only mode)")
 
 
 # Courses ────────────────────────────────────────────────────────────────────
@@ -291,11 +441,10 @@ for cid in shuffled_courses[NUM_LECTURERS:]:
     course_lecturer[cid] = lid
     lecturer_courses_count[lid] += 1
 
-f = open("OURVLE_Clone_Courses.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
-f.write(" ──── Courses ────────────────────────────────────────────────────────────────────\n")
 assigned_codes = set()
 course_faculty = {}
+course_major = {}
+course_data = []
 
 for cid in course_ids:
     lid = course_lecturer[cid]
@@ -317,47 +466,70 @@ for cid in course_ids:
             break
     
     course_faculty[cid] = faculty
+    course_major[cid] = major
     faculty_courses[faculty].append(cid)
+    course_data.append(f"INSERT INTO Course VALUES ('{cid}', '{name}', '{code}', '{lid}');\n")
 
-    f.write(f"INSERT INTO Course VALUES ('{cid}', '{name}', '{code}', {lid});\n")
-f.write("\n")
-f.close()
+if REGENERATE_MODE != "forums_only":
+    f = open("OURVLE_Clone_Courses.sql", "w")
+    f.write("USE OURVLECloneDatabase;\n")
+    f.write("TRUNCATE TABLE Course;\n\n")
+    f.write(" ──── Courses ────────────────────────────────────────────────────────────────────\n")
+    f.writelines(course_data)
+    f.write("\n")
+    f.close()
+    print("✓ Generated OURVLE_Clone_Courses.sql")
+else:
+    print("⊘ Skipped OURVLE_Clone_Courses.sql (forums_only mode)")
 
 
 # Students ────────────────────────────────────────────────────────────────────
 all_majors = [m for majors in MAJORS.values() for m in majors]
 student_ids = list(range(630160000, 630160000 + NUM_STUDENTS))
 student_major = {}
+student_data = []
 
-f = open("OURVLE_Clone_Students.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
-f.write(" ──── Students ────────────────────────────────────────────────────────────────────\n")
 for sid in student_ids:
     first = fake.first_name().replace("'", "''")
     last = fake.last_name().replace("'", "''")
     major = random.choice(all_majors)
     student_major[sid] = major
-    f.write(f"INSERT INTO Student VALUES ({sid}, '{first}', '{last}', '{major}', '{ENROLLMENT_DATE}');\n")
-f.write("\n")
-f.close()
+    student_data.append(f"INSERT INTO Student VALUES ({sid}, '{first}', '{last}', '{major}', '{ENROLLMENT_DATE}');\n")
+
+if REGENERATE_MODE != "forums_only":
+    f = open("OURVLE_Clone_Students.sql", "w")
+    f.write("USE OURVLECloneDatabase;\n")
+    f.write("TRUNCATE TABLE Student;\n\n")
+    f.write(" ──── Students ────────────────────────────────────────────────────────────────────\n")
+    f.writelines(student_data)
+    f.write("\n")
+    f.close()
+    print("✓ Generated OURVLE_Clone_Students.sql")
+else:
+    print("⊘ Skipped OURVLE_Clone_Students.sql (forums_only mode)")
 
 
 # Enrollments ────────────────────────────────────────────────────────────────────
 student_courses = {sid: set() for sid in student_ids}
 course_enrollment_count = {cid: 0 for cid in course_ids}
 
-# Only pick students whose faculty matches the course's faculty
+# Group students by their FACULTY (not specific major)
+# This allows them to take ANY course from their faculty
 faculty_students = {}
 for sid, major in student_major.items():
     fac = major_to_faculty[major]
     faculty_students.setdefault(fac, []).append(sid)
 
+# Pass 1 — guarantee every course has at least 10 students (requirement e)
+# Iterate over courses, not students, so no course is accidentally skipped.
 for cid in course_ids:
-    fac = course_faculty[cid]
-    eligible_pool = faculty_students[fac]
-    seeded = 0
+    fac           = course_faculty[cid]
+    eligible_pool = faculty_students.get(fac, [])
+    if not eligible_pool:
+        continue
+    seeded   = 0
     attempts = 0
-    max_attempts = len(eligible_pool) * 2
+    max_attempts = len(eligible_pool) * 3
 
     while seeded < 10 and attempts < max_attempts:
         sid = random.choice(eligible_pool)
@@ -367,31 +539,43 @@ for cid in course_ids:
             seeded += 1
         attempts += 1
 
+# Pass 2 — ensure every student has at least 3 courses (requirement d)
 for sid in student_ids:
-    fac = major_to_faculty[student_major[sid]]
-    available = faculty_courses[fac]
-    attempts = 0
-    max_attempts = len(available) * 2
+    fac             = major_to_faculty[student_major[sid]]
+    available_courses = faculty_courses.get(fac, [])
+    if not available_courses:
+        continue
+    attempts     = 0
+    max_attempts = len(available_courses) * 3
 
     while len(student_courses[sid]) < 3 and attempts < max_attempts:
-        cid = random.choice(available)
-        if cid not in student_courses[sid]:
+        cid = random.choice(available_courses)
+        if cid not in student_courses[sid] and len(student_courses[sid]) < 6:
             student_courses[sid].add(cid)
             course_enrollment_count[cid] += 1
         attempts += 1
 
-f = open("OURVLE_Clone_Enrollments.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
-f.write("-- Enrollments\n")
+# Generate enrollment data
+enrollment_data = []
 for sid, courses in student_courses.items():
     for cid in courses:
-        f.write(f"INSERT INTO Enrollment VALUES ({sid}, '{cid}');\n")
-f.write("\n")
-f.close()
+        enrollment_data.append(f"INSERT INTO Enrollment VALUES ({sid}, '{cid}');\n")
+
+if REGENERATE_MODE != "forums_only":
+    f = open("OURVLE_Clone_Enrollments.sql", "w")
+    f.write("USE OURVLECloneDatabase;\n")
+    f.write("TRUNCATE TABLE Enrollment;\n\n")
+    f.write("-- Enrollments\n")
+    f.writelines(enrollment_data)
+    f.write("\n")
+    f.close()
+    print("✓ Generated OURVLE_Clone_Enrollments.sql")
+else:
+    print("⊘ Skipped OURVLE_Clone_Enrollments.sql (forums_only mode)")
 
 
 # Calendar Events ────────────────────────────────────────────────────────────────────
-EVENT_TYPES = ["Lab", "Assignment Due", "Exam"]
+EVENT_TYPES = [ "Lab", "Tutorial", "Assignment Due", "Exam"]
 
 SEMESTER_START = datetime.date(2024, 9, 2)
 SEMESTER_END   = datetime.date(2024, 12, 20)
@@ -401,18 +585,43 @@ def random_date(start, end):
     return start + datetime.timedelta(days=random.randint(0, delta.days))
 
 f = open("OURVLE_Clone_Calendar_Events.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
+f.write("USE OURVLECloneDatabase;\n")
+f.write("TRUNCATE TABLE Calendar_Event;\n\n")
 f.write(" ──── Calendar Events ────────────────────────────────────────────────────────────────────\n")
 event_id = 1
 course_events = {cid: [] for cid in course_ids} # track which events belong to which course
 
 for cid in course_ids:
-    num_events = random.randint(5, 15) # each course gets 5-15 events
+    dept = lecturer_dept[course_lecturer[cid]]
+    dept_code_prefix = dept_code[dept]
+    major = course_major[cid]
+    course_topic = MAJOR_COURSES[major][1][random.randint(0, len(MAJOR_COURSES[major][1]) - 1)]
+    
+    num_events = random.randint(5, 16) # each course gets 8-18 events
+    event_counts = {"Lab": 0, "Tutorial": 0, "Assignment Due": 0, "Exam": 0}
+    
     for _ in range(num_events):
         etype = random.choice(EVENT_TYPES)
         edate = random_date(SEMESTER_START, SEMESTER_END)
-        title = f"{etype} - {fake.bs().title()}".replace("'", "''")
-        desc  = fake.sentence(nb_words=10).replace("'", "''")
+        
+        # Generate realistic title based on event type
+        if etype == "Lecture":
+            title = f"Lecture: Introduction to {course_topic}".replace("'", "''")
+        elif etype == "Lab":
+            title = f"Lab Session: {course_topic} Practical Work".replace("'", "''")
+        elif etype == "Tutorial":
+            title = f"Tutorial: Q&A on {course_topic}".replace("'", "''")
+        elif etype == "Assignment Due":
+            title = f"Assignment Submission: {course_topic} - Part {random.randint(1, 3)}".replace("'", "''")
+        elif etype == "Exam":
+            title = f"Exam: {course_topic} Assessment".replace("'", "''")
+        elif etype == "Seminar":
+            title = f"Seminar: Advanced {course_topic} Topics".replace("'", "''")
+        else:  # Office Hours
+            title = f"Office Hours: {course_topic} Discussion".replace("'", "''")
+        
+        desc = generate_event_description(etype, dept_code_prefix)
+        
         f.write(
             f"INSERT INTO Calendar_Event VALUES "
             f"({event_id}, '{cid}', '{title}', '{desc}', '{etype}', '{edate}');\n"
@@ -421,6 +630,7 @@ for cid in course_ids:
         event_id += 1
 f.write("\n")
 f.close()
+print("✓ Generated OURVLE_Clone_Calendar_Events.sql")
 
 
 # Forums ────────────────────────────────────────────────────────────────────
@@ -429,7 +639,8 @@ FORUM_TITLES = [
     "Project Discussion", "Weekly Q&A"]
 
 f = open("OURVLE_Clone_Forums.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
+f.write("USE OURVLECloneDatabase;\n")
+f.write("TRUNCATE TABLE Discussion_Forum;\n\n")
 f.write(" ──── Discussion Forums ────────────────────────────────────────────────────────────────────\n")
 forum_id = 1
 course_forums = {cid: [] for cid in course_ids}   # course_id -> [forum_ids]
@@ -444,6 +655,7 @@ for cid in course_ids:
         forum_id += 1
 f.write("\n")
 f.close()
+print("✓ Generated OURVLE_Clone_Forums.sql")
 
 
 # Discussion Threads and Replies ────────────────────────────────────────────────────────────────────
@@ -453,7 +665,8 @@ for sid, courses in student_courses.items():
         student_courses_by_course.setdefault(cid, []).append(sid)
 
 f = open("OURVLE_Clone_Discussion_Threads.sql", "w")
-f.write("USE OURVLECloneDatabase;\n\n")
+f.write("USE OURVLECloneDatabase;\n")
+f.write("TRUNCATE TABLE Discussion_Thread;\n\n")
 f.write("-- Discussion Threads ────────────────────────────────────────────────────────────────────\n")
 thread_id  = 1
 # track top-level threads per forum so replies can reference them
@@ -464,10 +677,12 @@ all_user_ids = [str(sid) for sid in student_ids] + lecturer_ids  # pool of valid
 for cid in course_ids:
     enrolled_students = list(student_courses_by_course.get(cid, []))
     lecturer_id = course_lecturer[cid]
+    dept = lecturer_dept[lecturer_id]
+    dept_code_for_course = dept_code[dept]
 
     for fid in course_forums[cid]:
         forum_threads[fid] = []
-        num_threads = random.randint(3, 10)   # top-level posts per forum
+        num_threads = random.randint(4, 12)   # top-level posts per forum
 
         for _ in range(num_threads):
             # Pick author from enrolled students or the lecturer
@@ -476,7 +691,12 @@ for cid in course_ids:
             else:
                 author = lecturer_id
 
-            content      = fake.paragraph(nb_sentences=3).replace("'", "''")
+            # Generate realistic academic content
+            if random.random() < 0.6:  # 60% chance of student question/discussion
+                content = generate_forum_thread(dept_code_for_course)
+            else:  # 40% chance of resource/announcement type post
+                content = generate_forum_reply(dept_code_for_course)
+            
             created_date = random_date(SEMESTER_START, SEMESTER_END)
             # NULL for parent_thread_id since this is a top-level post
             f.write(
@@ -486,16 +706,17 @@ for cid in course_ids:
             forum_threads[fid].append(thread_id)
             thread_id += 1
 
-        # Replies — each top-level thread gets 0-5 replies
+        # Replies — each top-level thread gets 0-6 replies
         for parent_tid in forum_threads[fid]:
-            num_replies = random.randint(0, 5)
+            num_replies = random.randint(0, 6)
             for _ in range(num_replies):
-                if enrolled_students and random.random() < 0.85:
+                if enrolled_students and random.random() < 0.80:
                     author = random.choice(enrolled_students)
                 else:
                     author = lecturer_id
 
-                content      = fake.paragraph(nb_sentences=2).replace("'", "''")
+                # Generate realistic reply content
+                content = generate_forum_reply(dept_code_for_course)
                 created_date = random_date(SEMESTER_START, SEMESTER_END)
                 f.write(
                     f"INSERT INTO Discussion_Thread VALUES "
@@ -505,5 +726,16 @@ for cid in course_ids:
 
 f.write("\n")
 f.close()
+print("✓ Generated OURVLE_Clone_Discussion_Threads.sql")
 
-print("Completed!!!, Check 'OURVLE_Clone_Database.sql' and run it.")
+print("\n" + "="*80)
+if REGENERATE_MODE == "forums_only":
+    print("COMPLETED! (forums_only mode)")
+    print("Load only these 3 SQL files:")
+    print("  - OURVLE_Clone_Calendar_Events.sql")
+    print("  - OURVLE_Clone_Forums.sql")
+    print("  - OURVLE_Clone_Discussion_Threads.sql")
+else:
+    print("COMPLETED! (all tables regenerated)")
+    print("Check all 7 SQL files and load them into the database.")
+print("="*80)
