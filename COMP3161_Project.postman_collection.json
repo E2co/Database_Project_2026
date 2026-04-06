@@ -1,0 +1,171 @@
+{
+  "info": {
+    "_postman_id": "d0d47e90-58de-477a-89ff-1d9f931926bc",
+    "name": "COMP3161_Project",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "53127120",
+    "_collection_link": "https://go.postman.co/collection/53127120-d0d47e90-58de-477a-89ff-1d9f931926bc?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "courses_specific_student",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/630197554",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "630197554"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "courses_specific_lecturer",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/BMNG436",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "BMNG436"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "courses",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "course_members",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/course_members/CHEM1569",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "course_members",
+            "CHEM1569"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "calendar-events_specific_course",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/calendar_events/GEOG1703",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "calendar_events",
+            "GEOG1703"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "calendar-events_specific-student_specific-date",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/calendar_events/630170785/2024-12-12",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "calendar_events",
+            "630170785",
+            "2024-12-12"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "register",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"FirstName\": \"Dam\",\r\n  \"LastName\": \"Esco\",\r\n  \"Email\": \"damario.esco@gmail.com\",\r\n  \"Role\": \"Admin\",\r\n  \"Password\": \"admin123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/register",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "login",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"Email\": \"damario.esco@gmail.com\",\r\n    \"Password\": \"admin123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/login",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "login"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
