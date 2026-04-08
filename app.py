@@ -279,13 +279,97 @@ def retrieve_cal_events_dateandstudent(student_id, event_date):
     else:
         return jsonify({"error": "No calendar events for this student at the specified date."}), 404
 
-#@app.route('', methods=[''])
-#def create_calender_events():
-#    pass
 
-#@app.route('', methods=[''])
-#def forum():
-#    pass
+@app.route('/calendar_events', methods=['POST'])
+def create_calender_events():
+    try:
+        event_data = request.get_json()
+        if not event_data:
+            return jsonify({"error": "No data provided."}), 400
+        
+        course_id = event_data.get('CourseID', '').strip()
+        event_title = event_data.get('EventTitle', '').strip()
+        description = event_data.get('Description', '').strip()
+        event_type = event_data.get('EventType', '').strip()
+        event_date = event_data.get('EventDate', '').strip()
+        
+        if not all([course_id, event_title, description, event_type, event_date]):
+            return jsonify({"error": "Missing required fields ."}), 400
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Calendar_Event (CourseID, EventTitle, Description, EventType, EventDate)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (course_id, event_title, description, event_type, event_date))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"message": "Calendar event created successfully."}), 201
+    except mysql.connector.Error as e:
+        if e.errno == 1452:
+            return jsonify({"error": "Course not found."}), 404
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    
+
+@app.route('/forums/<string:course_code>', methods=['GET'])
+def retrieve_forums(course_code):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT DF.ForumID, DF.ForumTitle, DF.CourseID
+            FROM Discussion_Forum DF
+            INNER JOIN Course C ON C.CourseID = DF.CourseID
+            WHERE C.CourseCode = %s
+        """, (course_code,))
+        
+        forums = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        if forums:
+            return jsonify(forums), 200
+        else:
+            return jsonify({"error": "No forums found for this course."}), 404
+    
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve forums: {str(e)}"}), 500
+
+@app.route('/forums', methods=['POST'])
+def create_forum():
+    try:
+        forum_data = request.get_json()
+        
+        if not forum_data:
+            return jsonify({"error": "No data provided."}), 400
+        
+        course_id = forum_data.get('CourseID', '').strip()
+        forum_title = forum_data.get('ForumTitle', '').strip()
+        
+        if not all([course_id, forum_title]):
+            return jsonify({"error": "Missing required fields (CourseID, ForumTitle)."}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO Discussion_Forum (CourseID, ForumTitle)
+            VALUES (%s, %s)
+        """, (course_id, forum_title))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"message": "Forum created successfully."}), 201
+    
+    except mysql.connector.Error as e:
+        if e.errno == 1452:
+            return jsonify({"error": "Course not found."}), 404
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    
+
+    
 
 #@app.route('', methods=[''])
 #def discussion_thread():
