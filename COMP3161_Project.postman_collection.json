@@ -84,13 +84,13 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{HOST}}/calendar_events/GEOG1703",
+          "raw": "{{HOST}}/calendar_events/PHAR1224",
           "host": [
             "{{HOST}}"
           ],
           "path": [
             "calendar_events",
-            "GEOG1703"
+            "PHAR1224"
           ]
         }
       },
@@ -102,14 +102,14 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{HOST}}/calendar_events/630170785/2024-12-12",
+          "raw": "{{HOST}}/calendar_events/630160787/2024-10-21",
           "host": [
             "{{HOST}}"
           ],
           "path": [
             "calendar_events",
-            "630170785",
-            "2024-12-12"
+            "630160787",
+            "2024-10-21"
           ]
         }
       },
@@ -162,6 +162,78 @@
           ],
           "path": [
             "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "lecturer_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/three_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "three_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": ">50_students_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/fifty_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "fifty_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": ">5_courses_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/five_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "five_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "top10_courses_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/top_ten_enrolled",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "top_ten_enrolled"
           ]
         }
       },
