@@ -238,6 +238,103 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "create_course",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"CourseName\": \"Introduction to Databases\",\n  \"CourseCode\": \"COMP3161\",\n  \"LecturerID\": \"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/courses",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "enroll_student_in_course",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"StudentID\": \"630197554\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/courses/{{COURSE_ID}}/enroll",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "{{COURSE_ID}}",
+            "enroll"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "assign_lecturer_to_course",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"LecturerID\": \"BMNG436\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/courses/{{COURSE_ID}}/lecturer",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "{{COURSE_ID}}",
+            "lecturer"
+          ]
+        }
+      },
+      "response": []
     }
   ]
 }

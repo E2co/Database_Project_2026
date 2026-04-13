@@ -157,9 +157,80 @@ def login():
 #def dashboard(current_user):
 #    return f"Welcome {current_user.name}! You are logged in."
 
-#@app.route('', methods=[''])
-#def create_course():
-#    pass
+#  CREATE COURSE  (Admin only)
+@app.route('/courses', methods=['POST'])
+@token_required
+def create_course(current_user):
+    """
+    Only admins can create a course.
+    current_user tuple indexes (from SELECT * FROM User):
+      0=UserID, 1=FirstName, 2=LastName, 3=Email, 4=Role, 5=Password, 6=DateCreated
+    """
+    try:
+        user_role = current_user[4]
+ 
+        if user_role.lower() != 'admin':
+            return jsonify({"error": "Access denied. Only admins can create courses."}), 403
+ 
+        course_data = request.get_json()
+        if not course_data:
+            return jsonify({"error": "No data provided."}), 400
+ 
+        course_name = course_data.get('CourseName', '').strip()
+        course_code = course_data.get('CourseCode', '').strip()
+        lecturer_id = course_data.get('LecturerID', '').strip()   # optional at creation time
+ 
+        if not course_name or not course_code:
+            return jsonify({"error": "Missing required fields: CourseName, CourseCode."}), 400
+ 
+        conn = get_db_connection()
+        cursor = conn.cursor()
+ 
+        # CourseCode must be unique
+        cursor.execute("SELECT CourseID FROM Course WHERE CourseCode = %s", (course_code,))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": f"A course with code '{course_code}' already exists."}), 409
+ 
+        # If a lecturer is supplied up-front, validate them
+        if lecturer_id:
+            cursor.execute("SELECT LecturerID FROM Lecturer WHERE LecturerID = %s", (lecturer_id,))
+            if not cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "Lecturer not found."}), 404
+ 
+            # Enforce max 5 courses per lecturer
+            cursor.execute("SELECT COUNT(*) FROM Course WHERE LecturerID = %s", (lecturer_id,))
+            lec_count = cursor.fetchone()[0]
+            if lec_count >= 5:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "Lecturer already teaches 5 courses (maximum allowed)."}), 400
+ 
+        course_id = str(uuid.uuid4())[:8]
+ 
+        cursor.execute(
+            "INSERT INTO Course (CourseID, CourseName, CourseCode, LecturerID) VALUES (%s, %s, %s, %s)",
+            (course_id, course_name, course_code, lecturer_id if lecturer_id else None)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+ 
+        return jsonify({
+            "message": "Course created successfully.",
+            "CourseID": course_id,
+            "CourseName": course_name,
+            "CourseCode": course_code,
+            "LecturerID": lecturer_id if lecturer_id else None
+        }), 201
+ 
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Course creation failed: {str(e)}"}), 500
 
 @app.route('/courses', methods=['GET'])
 def retrieve_courses():
@@ -212,9 +283,147 @@ def retrieve_lec_courses(lecturer_id):
     else:
         return jsonify({"error": "No courses found for this lecturer."}), 404
     
-#@app.route('', methods=[''])
-#def register_for_course():
-#    pass
+#  REGISTER FOR COURSE – Student enrolment
+@app.route('/courses/<string:course_id>/enroll', methods=['POST'])
+@token_required
+def register_for_course(current_user, course_id):
+    """
+    Enrol a student in the given course.
+    - Student must exist in the Student table.
+    - Cannot enrol in the same course twice.
+    - A student may not exceed 6 courses in total.
+    """
+    try:
+        enroll_data = request.get_json()
+        if not enroll_data:
+            return jsonify({"error": "No data provided."}), 400
+ 
+        student_id = enroll_data.get('StudentID', '').strip()
+        if not student_id:
+            return jsonify({"error": "Missing required field: StudentID."}), 400
+ 
+        conn = get_db_connection()
+        cursor = conn.cursor()
+ 
+        # Verify the course exists
+        cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Course not found."}), 404
+ 
+        # Verify the student exists
+        cursor.execute("SELECT StudentID FROM Student WHERE StudentID = %s", (student_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Student not found."}), 404
+ 
+        # Prevent duplicate enrolment
+        cursor.execute(
+            "SELECT StudentID FROM Enrollment WHERE StudentID = %s AND CourseID = %s",
+            (student_id, course_id)
+        )
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Student is already enrolled in this course."}), 409
+ 
+        # Enforce max 6 courses per student
+        cursor.execute("SELECT COUNT(*) FROM Enrollment WHERE StudentID = %s", (student_id,))
+        current_count = cursor.fetchone()[0]
+        if current_count >= 6:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Student is already enrolled in 6 courses (maximum allowed)."}), 400
+ 
+        cursor.execute(
+            "INSERT INTO Enrollment (StudentID, CourseID) VALUES (%s, %s)",
+            (student_id, course_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+ 
+        return jsonify({
+            "message": "Student enrolled successfully.",
+            "StudentID": student_id,
+            "CourseID": course_id
+        }), 201
+ 
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Enrolment failed: {str(e)}"}), 500
+ 
+ 
+#  ASSIGN LECTURER TO COURSE  (Admin only)
+@app.route('/courses/<string:course_id>/lecturer', methods=['PUT'])
+@token_required
+def assign_lecturer(current_user, course_id):
+    """
+    Assign (or reassign) the single lecturer for a course.
+    Only admins may do this.
+    """
+    try:
+        user_role = current_user[4]
+        if user_role.lower() != 'admin':
+            return jsonify({"error": "Access denied. Only admins can assign lecturers."}), 403
+ 
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+ 
+        lecturer_id = data.get('LecturerID', '').strip()
+        if not lecturer_id:
+            return jsonify({"error": "Missing required field: LecturerID."}), 400
+ 
+        conn = get_db_connection()
+        cursor = conn.cursor()
+ 
+        # Verify course exists
+        cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Course not found."}), 404
+ 
+        # Verify lecturer exists
+        cursor.execute("SELECT LecturerID FROM Lecturer WHERE LecturerID = %s", (lecturer_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Lecturer not found."}), 404
+ 
+        # Enforce max 5 courses per lecturer (exclude this course in case of reassignment)
+        cursor.execute(
+            "SELECT COUNT(*) FROM Course WHERE LecturerID = %s AND CourseID != %s",
+            (lecturer_id, course_id)
+        )
+        lec_count = cursor.fetchone()[0]
+        if lec_count >= 5:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Lecturer already teaches 5 courses (maximum allowed)."}), 400
+ 
+        cursor.execute(
+            "UPDATE Course SET LecturerID = %s WHERE CourseID = %s",
+            (lecturer_id, course_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+ 
+        return jsonify({
+            "message": "Lecturer assigned to course successfully.",
+            "CourseID": course_id,
+            "LecturerID": lecturer_id
+        }), 200
+ 
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Lecturer assignment failed: {str(e)}"}), 500
 
 @app.route('/course_members/<string:course_code>', methods=['GET'])
 def retrieve_participants(course_code):
