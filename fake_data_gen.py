@@ -573,6 +573,161 @@ if REGENERATE_MODE != "forums_only":
 else:
     print("⊘ Skipped OURVLE_Clone_Enrollments.sql (forums_only mode)")
 
+# Course Content ────────────────────────────────────────────────────────────────────
+CONTENT_TYPES = ["link", "file", "slide"]
+
+SECTION_TITLES = [
+    "Week 1 - Introduction",
+    "Week 2 - Core Concepts",
+    "Week 3 - Practical Applications",
+    "Week 4 - Advanced Topics",
+    "Week 5 - Case Studies",
+    "Midterm Review",
+    "Week 7 - Deep Dive",
+    "Week 8 - Group Work",
+    "Week 9 - Research & Analysis",
+    "Week 10 - Exam Preparation",
+]
+
+CONTENT_URLS = {
+    "link":  [
+        "https://www.khanacademy.org/",
+        "https://ocw.mit.edu/",
+        "https://scholar.google.com/",
+        "https://www.coursera.org/",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://docs.python.org/3/",
+        "https://www.geeksforgeeks.org/",
+    ],
+    "file":  [
+        "https://files.ourvle.edu/lecture_notes.pdf",
+        "https://files.ourvle.edu/lab_manual.pdf",
+        "https://files.ourvle.edu/reading_list.pdf",
+        "https://files.ourvle.edu/problem_set.pdf",
+        "https://files.ourvle.edu/reference_sheet.pdf",
+    ],
+    "slide": [
+        "https://slides.ourvle.edu/week1_intro.pptx",
+        "https://slides.ourvle.edu/week2_concepts.pptx",
+        "https://slides.ourvle.edu/midterm_review.pptx",
+        "https://slides.ourvle.edu/week7_advanced.pptx",
+        "https://slides.ourvle.edu/final_recap.pptx",
+    ],
+}
+
+content_id_counter = 1
+f = open("OURVLE_Clone_Course_Content.sql", "w")
+f.write("USE OURVLECloneDatabase;\n")
+f.write("TRUNCATE TABLE Course_Content;\n\n")
+f.write("-- Course Content ────────────────────────────────────────────────────────────────────\n")
+
+for cid in course_ids:
+    lid = course_lecturer[cid]
+    num_sections = random.randint(3, 6)
+    chosen_sections = random.sample(SECTION_TITLES, num_sections)
+
+    for section in chosen_sections:
+        num_items = random.randint(1, 3)  # 1-3 content items per section
+        for _ in range(num_items):
+            ctype = random.choice(CONTENT_TYPES)
+            url   = random.choice(CONTENT_URLS[ctype])
+            upload_date = random_date(SEMESTER_START, SEMESTER_END)
+            safe_section = section.replace("'", "''")
+            content_id_str = f"CC{str(content_id_counter).zfill(6)}"
+            f.write(
+                f"INSERT INTO Course_Content VALUES "
+                f"('{content_id_str}', '{cid}', '{safe_section}', '{ctype}', '{url}', '{lid}', '{upload_date}');\n"
+            )
+            content_id_counter += 1
+
+f.write("\n")
+f.close()
+print("✓ Generated OURVLE_Clone_Course_Content.sql")
+
+
+# Assignments, Submissions & Grades ────────────────────────────────────────────────────────────────────
+ASSIGNMENT_TEMPLATES = [
+    ("Midterm Assignment", "Complete all questions in the provided problem set and submit your solutions."),
+    ("Research Essay",     "Write a 1500-word essay on a topic of your choice related to course material."),
+    ("Lab Report",         "Document and analyse your findings from the practical lab session."),
+    ("Group Project",      "Collaborate with your group to produce a report on the assigned topic."),
+    ("Final Assignment",   "Comprehensive assignment covering all course material. Follow the rubric provided."),
+    ("Problem Set",        "Solve the provided set of problems. Show all working."),
+    ("Case Study",         "Analyse the provided case study and present your recommendations."),
+    ("Literature Review",  "Review at least five academic sources and summarise their relevance to the topic."),
+]
+
+assignment_id_counter = 1
+submission_id_counter = 1
+grade_id_counter      = 1
+
+fa = open("OURVLE_Clone_Assignments.sql",  "w")
+fs = open("OURVLE_Clone_Submissions.sql",  "w")
+fg = open("OURVLE_Clone_Grades.sql",       "w")
+
+
+
+for f_handle, table in [(fa, "Assignment"), (fs, "Submission"), (fg, "Grade")]:
+    f_handle.write("USE OURVLECloneDatabase;\n")
+    f_handle.write(f"TRUNCATE TABLE {table};\n\n")
+    f_handle.write(f"-- {table}s ────────────────────────────────────────────────────────────────────\n")
+
+course_assignments = {}   # cid -> [assignment_id_strs]
+
+for cid in course_ids:
+    lid = course_lecturer[cid]
+    num_assignments = random.randint(2, 4)
+    chosen = random.sample(ASSIGNMENT_TEMPLATES, num_assignments)
+    course_assignments[cid] = []
+
+    for title, desc in chosen:
+        due_date = random_date(SEMESTER_START, SEMESTER_END)
+        aid_str  = f"A{str(assignment_id_counter).zfill(6)}"
+        safe_title = title.replace("'", "''")
+        safe_desc  = desc.replace("'", "''")
+        fa.write(
+            f"INSERT INTO Assignment VALUES "
+            f"('{aid_str}', '{cid}', '{safe_title}', '{safe_desc}', '{due_date}');\n"
+        )
+        course_assignments[cid].append(aid_str)
+        assignment_id_counter += 1
+
+# Submissions & Grades — only for enrolled students
+for cid, aids in course_assignments.items():
+    enrolled = list(student_courses_by_course.get(cid, []))
+    if not enrolled:
+        continue
+
+    for aid in aids:
+        # ~80% of enrolled students submit each assignment
+        submitters = random.sample(enrolled, max(1, int(len(enrolled) * 0.8)))
+        for sid in submitters:
+            submitted_at = random_date(SEMESTER_START, SEMESTER_END)
+            sub_str = f"SUB{str(submission_id_counter).zfill(7)}"
+            fs.write(
+                f"INSERT INTO Submission VALUES "
+                f"('{sub_str}', '{aid}', {sid}, 'https://submissions.ourvle.edu/{sub_str}.pdf', '{submitted_at}');\n"
+            )
+
+            # ~90% of submissions get graded
+            if random.random() < 0.90:
+                grade_val = round(random.uniform(40.0, 100.0), 2)
+                gid_str   = f"G{str(grade_id_counter).zfill(7)}"
+                lid       = course_lecturer[cid]
+                fg.write(
+                    f"INSERT INTO Grade VALUES "
+                    f"('{gid_str}', '{sub_str}', {grade_val}, '{lid}');\n"
+                )
+                grade_id_counter += 1
+
+            submission_id_counter += 1
+
+fa.write("\n"); fa.close()
+fs.write("\n"); fs.close()
+fg.write("\n"); fg.close()
+print("✓ Generated OURVLE_Clone_Assignments.sql")
+print("✓ Generated OURVLE_Clone_Submissions.sql")
+print("✓ Generated OURVLE_Clone_Grades.sql")
 
 # Calendar Events ────────────────────────────────────────────────────────────────────
 EVENT_TYPES = [ "Lab", "Tutorial", "Assignment Due", "Exam"]
