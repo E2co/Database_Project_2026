@@ -55,6 +55,9 @@ def token_required(f):
     return decorated
 
 
+# ─────────────────────────────────────────────
+#  USER REGISTRATION/LOGIN
+# ─────────────────────────────────────────────
 @app.route('/register', methods=['POST'])
 def register_user():
     try:
@@ -75,7 +78,8 @@ def register_user():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-                    SELECT Email FROM User
+                    SELECT Email 
+                    FROM User
                     WHERE Email = %s
                     """, (user_email,))
         
@@ -119,7 +123,8 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-                    SELECT UserID, Email, Password FROM User 
+                    SELECT UserID, Email, Password 
+                    FROM User 
                     WHERE Email = %s
                     """, (user_email,))
         existing_user = cursor.fetchone()
@@ -157,8 +162,12 @@ def login():
 #def dashboard(current_user):
 #    return f"Welcome {current_user.name}! You are logged in."
 
-#  CREATE COURSE  (Admin only)
-@app.route('/courses', methods=['POST'])
+
+# ─────────────────────────────────────────────
+#  CREATE/REGISTER FOR COURSES
+# ─────────────────────────────────────────────
+# CREATE COURSE  (Admin only)
+@app.route('/courses/create', methods=['POST'])
 @token_required
 def create_course(current_user):
     """
@@ -231,57 +240,6 @@ def create_course(current_user):
         return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Course creation failed: {str(e)}"}), 500
-
-@app.route('/courses', methods=['GET'])
-def retrieve_courses():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-                    SELECT C.CourseID, C.CourseName, C.CourseCode 
-                    FROM Course C
-                    """)
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": "No courses found."}), 404
-
-@app.route('/courses/<int:student_id>', methods=['GET'])
-def retrieve_std_courses(student_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-                    SELECT C.CourseID, C.CourseName, C.CourseCode 
-                    FROM Course C
-                    INNER JOIN Enrollment E ON C.CourseID = E.CourseID
-                    WHERE E.StudentID = %s
-                    """, (student_id,))
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": "No courses found for this student."}), 404
-
-@app.route('/courses/<string:lecturer_id>', methods=['GET'])
-def retrieve_lec_courses(lecturer_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-                    SELECT C.CourseID, C.CourseName, C.CourseCode 
-                    FROM Course C
-                    WHERE C.LecturerID = %s
-                    """, (lecturer_id,))
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": "No courses found for this lecturer."}), 404
     
 #  REGISTER FOR COURSE – Student enrolment
 @app.route('/courses/<string:course_id>/enroll', methods=['POST'])
@@ -355,8 +313,7 @@ def register_for_course(current_user, course_id):
         return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Enrolment failed: {str(e)}"}), 500
- 
- 
+    
 #  ASSIGN LECTURER TO COURSE  (Admin only)
 @app.route('/courses/<string:course_id>/lecturer', methods=['PUT'])
 @token_required
@@ -424,7 +381,66 @@ def assign_lecturer(current_user, course_id):
         return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Lecturer assignment failed: {str(e)}"}), 500
+    
 
+# ─────────────────────────────────────────────
+#  RETRIEVE MEMBERS
+# ─────────────────────────────────────────────
+@app.route('/courses/retrieve', methods=['GET'])
+def retrieve_courses():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+                    SELECT CourseID, CourseName, CourseCode 
+                    FROM Course
+                    """)
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": "No courses found."}), 404
+
+@app.route('/courses/<int:student_id>', methods=['GET'])
+def retrieve_std_courses(student_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+                    SELECT C.CourseID, C.CourseName, C.CourseCode 
+                    FROM Course C
+                    JOIN Enrollment E ON C.CourseID = E.CourseID
+                    WHERE E.StudentID = %s
+                    """, (student_id,))
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": "No courses found for this student."}), 404
+
+@app.route('/courses/<string:lecturer_id>', methods=['GET'])
+def retrieve_lec_courses(lecturer_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+                    SELECT CourseID, CourseName, CourseCode 
+                    FROM Course 
+                    WHERE LecturerID = %s
+                    """, (lecturer_id,))
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": "No courses found for this lecturer."}), 404
+
+
+# ─────────────────────────────────────────────
+#  RETRIEVE MEMBERS
+# ─────────────────────────────────────────────
 @app.route('/course_members/<string:course_code>', methods=['GET'])
 def retrieve_participants(course_code):
     conn = get_db_connection()
@@ -432,8 +448,8 @@ def retrieve_participants(course_code):
     cursor.execute("""
                     SELECT S.FirstName, S.LastName, S.Major 
                     FROM Student S 
-                    INNER JOIN Enrollment E 
-                    INNER JOIN Course C
+                    JOIN Enrollment E 
+                    JOIN Course C
                     ON C.CourseID = E.CourseID AND S.StudentID = E.StudentID
                     WHERE C.CourseCode = %s
                     """, (course_code,))
@@ -444,7 +460,11 @@ def retrieve_participants(course_code):
         return jsonify(courses)
     else:
         return jsonify({"error": "No students enrolled for this course."}), 404
+    
 
+# ─────────────────────────────────────────────
+#  RETRIEVE CALENDAR EVENTS
+# ─────────────────────────────────────────────
 @app.route('/calendar_events/<string:course_code>', methods=['GET'])
 def retrieve_calender_events(course_code):
     conn = get_db_connection()
@@ -452,7 +472,7 @@ def retrieve_calender_events(course_code):
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
-                    INNER JOIN Course C
+                    JOIN Course C
                     ON C.CourseID = CE.CourseID
                     WHERE C.CourseCode = %s
                     """, (course_code,))
@@ -475,8 +495,8 @@ def retrieve_cal_events_dateandstudent(student_id, event_date):
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
-                    INNER JOIN Course C
-                    INNER JOIN Enrollment E
+                    JOIN Course C
+                    JOIN Enrollment E
                     ON C.CourseID = CE.CourseID AND C.CourseID = E.CourseID
                     WHERE E.StudentID = %s AND CE.EventDate = %s
                     """, (student_id,event_date,))
@@ -489,6 +509,9 @@ def retrieve_cal_events_dateandstudent(student_id, event_date):
         return jsonify({"error": "No calendar events for this student at the specified date."}), 404
 
 
+# ─────────────────────────────────────────────
+#  CREATE CALENDAR EVENTS
+# ─────────────────────────────────────────────
 @app.route('/calendar_events', methods=['POST'])
 def create_calender_events():
     try:
@@ -501,6 +524,8 @@ def create_calender_events():
         description = event_data.get('Description', '').strip()
         event_type = event_data.get('EventType', '').strip()
         event_date = event_data.get('EventDate', '').strip()
+
+        """ Need an Event ID """
         
         if not all([course_id, event_title, description, event_type, event_date]):
             return jsonify({"error": "Missing required fields ."}), 400
@@ -520,31 +545,9 @@ def create_calender_events():
         return jsonify({"error": f"Database error: {str(e)}"}), 500
     
 
-@app.route('/forums/<string:course_code>', methods=['GET'])
-def retrieve_forums(course_code):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        cursor.execute("""
-            SELECT DF.ForumID, DF.ForumTitle, DF.CourseID
-            FROM Discussion_Forum DF
-            INNER JOIN Course C ON C.CourseID = DF.CourseID
-            WHERE C.CourseCode = %s
-        """, (course_code,))
-        
-        forums = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
-        if forums:
-            return jsonify(forums), 200
-        else:
-            return jsonify({"error": "No forums found for this course."}), 404
-    
-    except Exception as e:
-        return jsonify({"error": f"Failed to retrieve forums: {str(e)}"}), 500
-
+# ─────────────────────────────────────────────
+#  FORUMS
+# ─────────────────────────────────────────────
 @app.route('/forums', methods=['POST'])
 def create_forum():
     try:
@@ -561,6 +564,8 @@ def create_forum():
         
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        """ Need a Forum ID """
         
         cursor.execute("""
             INSERT INTO Discussion_Forum (CourseID, ForumTitle)
@@ -576,10 +581,36 @@ def create_forum():
         if e.errno == 1452:
             return jsonify({"error": "Course not found."}), 404
         return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+@app.route('/forums/<string:course_code>', methods=['GET'])
+def retrieve_forums(course_code):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT DF.ForumID, DF.ForumTitle, DF.CourseID
+            FROM Discussion_Forum DF
+            JOIN Course C ON C.CourseID = DF.CourseID
+            WHERE C.CourseCode = %s
+        """, (course_code,))
+        
+        forums = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        if forums:
+            return jsonify(forums), 200
+        else:
+            return jsonify({"error": "No forums found for this course."}), 404
+    
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve forums: {str(e)}"}), 500
     
 
-    
-
+# ─────────────────────────────────────────────
+#  DISCUSSION THREAD
+# ─────────────────────────────────────────────
 #@app.route('', methods=[''])
 #def discussion_thread():
 #    pass
@@ -591,97 +622,7 @@ def create_forum():
 #@app.route('', methods=[''])
 #def assignments():
 #    pass
-
-@app.route('/reports/fifty_or_more', methods=['GET'])
-def fifty_or_more_report():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-                    SELECT C.CourseName, C.CourseCode  
-                    FROM Course C
-                    INNER JOIN Enrollment E ON C.CourseID = E.CourseID
-                    GROUP BY C.CourseID, C.CourseName, C.CourseCode
-                    HAVING COUNT(E.StudentID) >= 50
-                    """)
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": "No course has 50 or more students enrolled."}), 404
-
-@app.route('/reports/five_or_more', methods=['GET'])
-def five_or_more_report():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-                    SELECT S.FirstName, S.LastName, S.Major  
-                    FROM Student S
-                    INNER JOIN Enrollment E ON S.StudentID = E.StudentID
-                    GROUP BY S.StudentID, S.FirstName, S.LastName, S.Major
-                    HAVING COUNT(E.CourseID) >= 5
-                    """)
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": "No student is enrolled in 5 or more courses."}), 404
-
-@app.route('/reports/three_or_more', methods=['GET'])
-def three_or_more_report():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-                    SELECT L.Name, L.Department  
-                    FROM Lecturer L
-                    INNER JOIN Course C ON L.LecturerID = C.LecturerID
-                    GROUP BY L.LecturerID, L.Name, L.Department
-                    HAVING COUNT(C.CourseID) >= 3
-                    """)
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": "No lecturer teaches 3 or more courses."}), 404
-
-@app.route('/reports/top_ten_enrolled', methods=['GET'])
-def top_ten_enrolled_report():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-                    SELECT CourseName, CourseCode  
-                    FROM Course C
-                    INNER JOIN Enrollment E
-                    ON C.CourseID = E.CourseID
-                    GROUP BY C.CourseID, C.CourseName, C.CourseCode
-                    ORDER BY COUNT(E.StudentID) DESC
-                    LIMIT 10
-                    """)
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": "No courses found."}), 404
-"""   
-@app.route('/reports/', methods=['GET'])
-def report():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute(""" """)
-    courses = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    if courses:
-        return jsonify(courses)
-    else:
-        return jsonify({"error": ""}), 404"""
+    
 
 # ─────────────────────────────────────────────
 #  COURSE CONTENT
@@ -1051,6 +992,87 @@ def grade_submission(current_user, assignment_id):
         return jsonify({"error": f"Grading failed: {str(e)}"}), 500
 
 
+# ─────────────────────────────────────────────
+#  REPORTS
+# ─────────────────────────────────────────────
+@app.route('/reports/fifty_or_more', methods=['GET'])
+def fifty_or_more_report():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+                    SELECT C.CourseName, C.CourseCode  
+                    FROM Course C
+                    INNER JOIN Enrollment E ON C.CourseID = E.CourseID
+                    GROUP BY C.CourseID, C.CourseName, C.CourseCode
+                    HAVING COUNT(E.StudentID) >= 50
+                    """)
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": "No course has 50 or more students enrolled."}), 404
+
+@app.route('/reports/five_or_more', methods=['GET'])
+def five_or_more_report():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+                    SELECT S.FirstName, S.LastName, S.Major  
+                    FROM Student S
+                    INNER JOIN Enrollment E ON S.StudentID = E.StudentID
+                    GROUP BY S.StudentID, S.FirstName, S.LastName, S.Major
+                    HAVING COUNT(E.CourseID) >= 5
+                    """)
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": "No student is enrolled in 5 or more courses."}), 404
+
+@app.route('/reports/three_or_more', methods=['GET'])
+def three_or_more_report():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+                    SELECT L.Name, L.Department  
+                    FROM Lecturer L
+                    INNER JOIN Course C ON L.LecturerID = C.LecturerID
+                    GROUP BY L.LecturerID, L.Name, L.Department
+                    HAVING COUNT(C.CourseID) >= 3
+                    """)
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": "No lecturer teaches 3 or more courses."}), 404
+
+@app.route('/reports/top_ten_enrolled', methods=['GET'])
+def top_ten_enrolled_report():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+                    SELECT CourseName, CourseCode  
+                    FROM Course C
+                    INNER JOIN Enrollment E
+                    ON C.CourseID = E.CourseID
+                    GROUP BY C.CourseID, C.CourseName, C.CourseCode
+                    ORDER BY COUNT(E.StudentID) DESC
+                    LIMIT 10
+                    """)
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": "No courses found."}), 404
+    
 @app.route('/students/<string:student_id>/average', methods=['GET'])
 def get_student_average(student_id):
     """Returns a student's overall grade average across all graded submissions."""
@@ -1082,6 +1104,20 @@ def get_student_average(student_id):
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve average: {str(e)}"}), 500
+    
+"""   
+@app.route('/reports/', methods=['GET'])
+def report():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(""" """)
+    courses = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if courses:
+        return jsonify(courses)
+    else:
+        return jsonify({"error": ""}), 404"""
 
 
 if __name__ == '__main__':
