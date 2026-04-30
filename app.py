@@ -683,6 +683,406 @@ def report():
     else:
         return jsonify({"error": ""}), 404"""
 
+# ─────────────────────────────────────────────
+#  COURSE CONTENT
+# ─────────────────────────────────────────────
+
+@app.route('/courses/<string:course_id>/content', methods=['GET'])
+def retrieve_course_content(course_id):
+    """Retrieve all course content for a particular course, grouped by section."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verify course exists
+        cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Course not found."}), 404
+
+        cursor.execute("""
+            SELECT ContentID, SectionTitle, ContentType, ContentURL, UploadedBy, DateUploaded
+            FROM Course_Content
+            WHERE CourseID = %s
+            ORDER BY SectionTitle, DateUploaded
+        """, (course_id,))
+
+        content = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        if content:
+            return jsonify(content), 200
+        else:
+            return jsonify({"error": "No content found for this course."}), 404
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve content: {str(e)}"}), 500
+
+
+@app.route('/courses/<string:course_id>/content', methods=['POST'])
+@token_required
+def add_course_content(current_user, course_id):
+    """
+    Lecturer adds content to a course.
+    Content types: link, file, slide
+    Content is organised by section.
+    """
+    try:
+        user_role = current_user[4]
+        if user_role.lower() != 'lecturer':
+            return jsonify({"error": "Access denied. Only lecturers can add course content."}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+
+        section_title  = data.get('SectionTitle', '').strip()
+        content_type   = data.get('ContentType', '').strip().lower()
+        content_url    = data.get('ContentURL', '').strip()
+
+        if not all([section_title, content_type, content_url]):
+            return jsonify({"error": "Missing required fields: SectionTitle, ContentType, ContentURL."}), 400
+
+        if content_type not in ('link', 'file', 'slide'):
+            return jsonify({"error": "ContentType must be one of: link, file, slide."}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verify course exists
+        cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Course not found."}), 404
+
+        # Verify lecturer is assigned to this course
+        lecturer_id = current_user[0]   # UserID == LecturerID in your schema
+        cursor.execute(
+            "SELECT CourseID FROM Course WHERE CourseID = %s AND LecturerID = %s",
+            (course_id, lecturer_id)
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "You are not the lecturer for this course."}), 403
+
+        content_id   = str(uuid.uuid4())[:8]
+        date_uploaded = datetime.now(timezone.utc).date()
+
+        cursor.execute("""
+            INSERT INTO Course_Content (ContentID, CourseID, SectionTitle, ContentType, ContentURL, UploadedBy, DateUploaded)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (content_id, course_id, section_title, content_type, content_url, lecturer_id, date_uploaded))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "message": "Course content added successfully.",
+            "ContentID": content_id,
+            "CourseID": course_id,
+            "SectionTitle": section_title,
+            "ContentType": content_type
+        }), 201
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Failed to add content: {str(e)}"}), 500
+
+
+# ─────────────────────────────────────────────
+#  ASSIGNMENTS
+# ─────────────────────────────────────────────
+
+@app.route('/courses/<string:course_id>/assignments', methods=['GET'])
+def retrieve_assignments(course_id):
+    """Retrieve all assignments for a course."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Course not found."}), 404
+
+        cursor.execute("""
+            SELECT AssignmentID, Title, Description, DueDate
+            FROM Assignment
+            WHERE CourseID = %s
+            ORDER BY DueDate
+        """, (course_id,))
+
+        assignments = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        if assignments:
+            return jsonify(assignments), 200
+        else:
+            return jsonify({"error": "No assignments found for this course."}), 404
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve assignments: {str(e)}"}), 500
+
+
+@app.route('/courses/<string:course_id>/assignments', methods=['POST'])
+@token_required
+def create_assignment(current_user, course_id):
+    """Lecturer creates an assignment for a course."""
+    try:
+        user_role = current_user[4]
+        if user_role.lower() != 'lecturer':
+            return jsonify({"error": "Access denied. Only lecturers can create assignments."}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+
+        title       = data.get('Title', '').strip()
+        description = data.get('Description', '').strip()
+        due_date    = data.get('DueDate', '').strip() 
+
+        if not all([title, description, due_date]):
+            return jsonify({"error": "Missing required fields: Title, Description, DueDate."}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Course not found."}), 404
+
+        lecturer_id = current_user[0]
+        cursor.execute(
+            "SELECT CourseID FROM Course WHERE CourseID = %s AND LecturerID = %s",
+            (course_id, lecturer_id)
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "You are not the lecturer for this course."}), 403
+
+        assignment_id = str(uuid.uuid4())[:8]
+
+        cursor.execute("""
+            INSERT INTO Assignment (AssignmentID, CourseID, Title, Description, DueDate)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (assignment_id, course_id, title, description, due_date))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "message": "Assignment created successfully.",
+            "AssignmentID": assignment_id,
+            "CourseID": course_id,
+            "Title": title,
+            "DueDate": due_date
+        }), 201
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Failed to create assignment: {str(e)}"}), 500
+
+
+@app.route('/assignments/<string:assignment_id>/submit', methods=['POST'])
+@token_required
+def submit_assignment(current_user, assignment_id):
+    """Student submits an assignment."""
+    try:
+        user_role = current_user[4]
+        if user_role.lower() != 'student':
+            return jsonify({"error": "Access denied. Only students can submit assignments."}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+
+        student_id = data.get('StudentID', '').strip()
+        file_path  = data.get('FilePath', '').strip()  
+        
+        if not all([student_id, file_path]):
+            return jsonify({"error": "Missing required fields: StudentID, FilePath."}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verify assignment exists
+        cursor.execute("SELECT AssignmentID, CourseID FROM Assignment WHERE AssignmentID = %s", (assignment_id,))
+        assignment = cursor.fetchone()
+        if not assignment:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Assignment not found."}), 404
+
+        course_id = assignment[1]
+
+        # Verify student is enrolled in the course
+        cursor.execute(
+            "SELECT StudentID FROM Enrollment WHERE StudentID = %s AND CourseID = %s",
+            (student_id, course_id)
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Student is not enrolled in this course."}), 403
+
+        # Prevent duplicate submission
+        cursor.execute(
+            "SELECT SubmissionID FROM Submission WHERE AssignmentID = %s AND StudentID = %s",
+            (assignment_id, student_id)
+        )
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Assignment already submitted."}), 409
+
+        submission_id  = str(uuid.uuid4())[:8]
+        submitted_at   = datetime.now(timezone.utc)
+
+        cursor.execute("""
+            INSERT INTO Submission (SubmissionID, AssignmentID, StudentID, FilePath, SubmittedAt)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (submission_id, assignment_id, student_id, file_path, submitted_at))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "message": "Assignment submitted successfully.",
+            "SubmissionID": submission_id,
+            "AssignmentID": assignment_id,
+            "StudentID": student_id
+        }), 201
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Submission failed: {str(e)}"}), 500
+
+
+@app.route('/assignments/<string:assignment_id>/grade', methods=['POST'])
+@token_required
+def grade_submission(current_user, assignment_id):
+    """
+    Lecturer grades a student's submission.
+    The grade is also factored into the student's overall average.
+    """
+    try:
+        user_role = current_user[4]
+        if user_role.lower() != 'lecturer':
+            return jsonify({"error": "Access denied. Only lecturers can submit grades."}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+
+        student_id = data.get('StudentID', '').strip()
+        grade      = data.get('Grade')   # numeric, e.g. 85.5
+
+        if not student_id or grade is None:
+            return jsonify({"error": "Missing required fields: StudentID, Grade."}), 400
+
+        if not (0 <= float(grade) <= 100):
+            return jsonify({"error": "Grade must be between 0 and 100."}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verify submission exists for this student & assignment
+        cursor.execute("""
+            SELECT SubmissionID FROM Submission
+            WHERE AssignmentID = %s AND StudentID = %s
+        """, (assignment_id, student_id))
+        submission = cursor.fetchone()
+        if not submission:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Submission not found for this student."}), 404
+
+        submission_id = submission[0]
+        lecturer_id   = current_user[0]
+
+        # Prevent duplicate grading
+        cursor.execute(
+            "SELECT GradeID FROM Grade WHERE SubmissionID = %s", (submission_id,)
+        )
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "This submission has already been graded."}), 409
+
+        grade_id = str(uuid.uuid4())[:8]
+
+        cursor.execute("""
+            INSERT INTO Grade (GradeID, SubmissionID, Grade, GradedBy)
+            VALUES (%s, %s, %s, %s)
+        """, (grade_id, submission_id, float(grade), lecturer_id))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "message": "Grade submitted successfully.",
+            "GradeID": grade_id,
+            "SubmissionID": submission_id,
+            "StudentID": student_id,
+            "Grade": float(grade)
+        }), 201
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Grading failed: {str(e)}"}), 500
+
+
+@app.route('/students/<string:student_id>/average', methods=['GET'])
+def get_student_average(student_id):
+    """Returns a student's overall grade average across all graded submissions."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT StudentID FROM Student WHERE StudentID = %s", (student_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Student not found."}), 404
+
+        cursor.execute("""
+            SELECT ROUND(AVG(G.Grade), 2) AS OverallAverage
+            FROM Grade G
+            INNER JOIN Submission S ON G.SubmissionID = S.SubmissionID
+            WHERE S.StudentID = %s
+        """, (student_id,))
+
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "StudentID": student_id,
+            "OverallAverage": result['OverallAverage'] if result['OverallAverage'] is not None else 0
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve average: {str(e)}"}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True) 
