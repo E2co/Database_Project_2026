@@ -157,10 +157,10 @@ def login():
     except Exception as e:
         return jsonify({"message": f"Login failed: {str(e)}"}), 500
     
-#@app.route('/dashboard')
-#@token_required
-#def dashboard(current_user):
-#    return f"Welcome {current_user.name}! You are logged in."
+@app.route('/dashboard', methods=['PUT'])
+@token_required
+def dashboard(current_user):
+    return f"Welcome {current_user.name}! You are logged in."
 
 
 # ─────────────────────────────────────────────
@@ -409,7 +409,7 @@ def retrieve_std_courses(student_id):
     cursor.execute("""
                     SELECT C.CourseID, C.CourseName, C.CourseCode 
                     FROM Course C
-                    JOIN Enrollment E ON C.CourseID = E.CourseID
+                    INNER JOIN Enrollment E ON C.CourseID = E.CourseID
                     WHERE E.StudentID = %s
                     """, (student_id,))
     courses = cursor.fetchall()
@@ -448,8 +448,8 @@ def retrieve_participants(course_code):
     cursor.execute("""
                     SELECT S.FirstName, S.LastName, S.Major 
                     FROM Student S 
-                    JOIN Enrollment E 
-                    JOIN Course C
+                    INNER JOIN Enrollment E 
+                    INNER JOIN Course C
                     ON C.CourseID = E.CourseID AND S.StudentID = E.StudentID
                     WHERE C.CourseCode = %s
                     """, (course_code,))
@@ -472,7 +472,7 @@ def retrieve_calender_events(course_code):
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
-                    JOIN Course C
+                    INNER JOIN Course C
                     ON C.CourseID = CE.CourseID
                     WHERE C.CourseCode = %s
                     """, (course_code,))
@@ -495,8 +495,8 @@ def retrieve_cal_events_dateandstudent(student_id, event_date):
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
-                    JOIN Course C
-                    JOIN Enrollment E
+                    INNER JOIN Course C
+                    INNER JOIN Enrollment E
                     ON C.CourseID = CE.CourseID AND C.CourseID = E.CourseID
                     WHERE E.StudentID = %s AND CE.EventDate = %s
                     """, (student_id,event_date,))
@@ -591,7 +591,7 @@ def retrieve_forums(course_code):
         cursor.execute("""
             SELECT DF.ForumID, DF.ForumTitle, DF.CourseID
             FROM Discussion_Forum DF
-            JOIN Course C ON C.CourseID = DF.CourseID
+            INNER JOIN Course C ON C.CourseID = DF.CourseID
             WHERE C.CourseCode = %s
         """, (course_code,))
         
@@ -628,7 +628,7 @@ def retrieve_forums(course_code):
 #  COURSE CONTENT
 # ─────────────────────────────────────────────
 
-@app.route('/courses/<string:course_id>/content', methods=['GET'])
+@app.route('/content/<string:course_id>', methods=['GET'])
 def retrieve_course_content(course_id):
     """Retrieve all course content for a particular course, grouped by section."""
     try:
@@ -664,7 +664,7 @@ def retrieve_course_content(course_id):
         return jsonify({"error": f"Failed to retrieve content: {str(e)}"}), 500
 
 
-@app.route('/courses/<string:course_id>/content', methods=['POST'])
+@app.route('/courses/content/<string:course_id>', methods=['POST'])
 @token_required
 def add_course_content(current_user, course_id):
     """
@@ -742,7 +742,7 @@ def add_course_content(current_user, course_id):
 #  ASSIGNMENTS
 # ─────────────────────────────────────────────
 
-@app.route('/courses/<string:course_id>/assignments', methods=['GET'])
+@app.route('/courses/assignments/<string:course_id>', methods=['GET'])
 def retrieve_assignments(course_id):
     """Retrieve all assignments for a course."""
     try:
@@ -775,7 +775,7 @@ def retrieve_assignments(course_id):
         return jsonify({"error": f"Failed to retrieve assignments: {str(e)}"}), 500
 
 
-@app.route('/courses/<string:course_id>/assignments', methods=['POST'])
+@app.route('/courses/assignments/<string:course_id>', methods=['POST'])
 @token_required
 def create_assignment(current_user, course_id):
     """Lecturer creates an assignment for a course."""
@@ -839,7 +839,7 @@ def create_assignment(current_user, course_id):
         return jsonify({"error": f"Failed to create assignment: {str(e)}"}), 500
 
 
-@app.route('/assignments/<string:assignment_id>/submit', methods=['POST'])
+@app.route('/assignments/submit/<string:assignment_id>', methods=['POST'])
 @token_required
 def submit_assignment(current_user, assignment_id):
     """Student submits an assignment."""
@@ -916,7 +916,7 @@ def submit_assignment(current_user, assignment_id):
         return jsonify({"error": f"Submission failed: {str(e)}"}), 500
 
 
-@app.route('/assignments/<string:assignment_id>/grade', methods=['POST'])
+@app.route('/assignments/grade/<string:assignment_id>', methods=['POST'])
 @token_required
 def grade_submission(current_user, assignment_id):
     """
@@ -1073,7 +1073,7 @@ def top_ten_enrolled_report():
     else:
         return jsonify({"error": "No courses found."}), 404
     
-@app.route('/students/<string:student_id>/average', methods=['GET'])
+@app.route('/students/average/<string:student_id>', methods=['GET'])
 def get_student_average(student_id):
     """Returns a student's overall grade average across all graded submissions."""
     try:

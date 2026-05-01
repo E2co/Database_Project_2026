@@ -49,12 +49,13 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{HOST}}/courses",
+          "raw": "{{HOST}}/courses/retrieve",
           "host": [
             "{{HOST}}"
           ],
           "path": [
-            "courses"
+            "courses",
+            "retrieve"
           ]
         }
       },
@@ -243,60 +244,33 @@
       "name": "create_course",
       "request": {
         "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"CourseName\": \"Introduction to Databases\",\n  \"CourseCode\": \"COMP3161\",\n  \"LecturerID\": \"\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        },
+        "header": [],
         "url": {
-          "raw": "{{HOST}}/courses",
+          "raw": "{{HOST}}/courses/create",
           "host": [
             "{{HOST}}"
           ],
           "path": [
-            "courses"
+            "courses",
+            "create"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "enroll_student_in_course",
+      "name": "register_course",
       "request": {
         "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"StudentID\": \"630197554\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        },
+        "header": [],
         "url": {
-          "raw": "{{HOST}}/courses/{{COURSE_ID}}/enroll",
+          "raw": "{{HOST}}/courses/630197554/enroll",
           "host": [
             "{{HOST}}"
           ],
           "path": [
             "courses",
-            "{{COURSE_ID}}",
+            "630197554",
             "enroll"
           ]
         }
@@ -304,18 +278,140 @@
       "response": []
     },
     {
-      "name": "assign_lecturer_to_course",
+      "name": "assign_course",
       "request": {
         "method": "PUT",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/6277/lecturer",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "6277",
+            "lecturer"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create_calendar_events",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/calendar_events",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "calendar_events"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create_forums",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/forums",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "forums"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "forums_specific_course",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/forums/COMP1122",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "forums",
+            "COMP1122"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get_content_spec._course",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/content/COMP1122",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "content",
+            "COMP1122"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "add_course_content",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/content/COMP1122",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "content",
+            "COMP1122"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get_assignment",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/assignments/63011926",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "assignments",
+            "63011926"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create_assignment",
+      "request": {
+        "method": "POST",
+        "header": [],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"LecturerID\": \"BMNG436\"\n}",
+          "raw": "",
           "options": {
             "raw": {
               "language": "json"
@@ -323,14 +419,115 @@
           }
         },
         "url": {
-          "raw": "{{HOST}}/courses/{{COURSE_ID}}/lecturer",
+          "raw": "{{HOST}}/courses/assignments/BMNG1234",
           "host": [
             "{{HOST}}"
           ],
           "path": [
             "courses",
-            "{{COURSE_ID}}",
-            "lecturer"
+            "assignments",
+            "BMNG1234"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "submit_assignment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/assignments/submit/1234",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "assignments",
+            "submit",
+            "1234"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "grade_assignment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/assignments/grade/1234",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "assignments",
+            "grade",
+            "1234"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": ">3_lecturers_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/three_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "three_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "student_grade_average",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/students/average/630176354",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "students",
+            "average",
+            "630176354"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Dashboard",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/dashboard",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "dashboard"
           ]
         }
       },
