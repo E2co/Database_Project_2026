@@ -34,8 +34,9 @@ CREATE TABLE Student(
 
 CREATE TABLE Enrollment(
     StudentID           varchar(10),
-    CourseID            varchar(10)
+    CourseID            varchar(10),
 );
+
 
 CREATE TABLE Calendar_Event(
     EventID             varchar(10),
@@ -53,10 +54,11 @@ CREATE TABLE Discussion_Forum(
 );
 
 CREATE TABLE Discussion_Thread(
-    ThreadID            varchar(10),
+    ThreadID            INT AUTO_INCREMENT PRIMARY KEY,
     ForumID             varchar(10),
+    Title               varchar(50),
     Content             varchar(255),
     CreatedDate         date,
     Author              varchar(50),
-    Parent_ThreadID     varchar(10)
+    Parent_ThreadID     INT
 );

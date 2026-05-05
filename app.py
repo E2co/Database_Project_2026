@@ -611,9 +611,118 @@ def retrieve_forums(course_code):
 # ─────────────────────────────────────────────
 #  DISCUSSION THREAD
 # ─────────────────────────────────────────────
-#@app.route('', methods=[''])
-#def discussion_thread():
-#    pass
+@app.route('/forums/<int:forum_id>/threads', methods=['GET'])
+def discussion_thread(forum_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT ThreadID, ForumID, Title, Content, CreatedDate, Author, Parent_ThreadID
+            FROM Discussion_Thread
+            WHERE ForumID = %s
+            ORDER BY CreatedDate ASC
+        """, (forum_id,))
+
+        threads= cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        
+        if threads:
+            return jsonify(threads), 200
+        else:
+            return jsonify({"error": "No threads found for this forum."}), 404
+            
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve threads: {str(e)}"}), 500
+
+#New thread or reply
+@app.route('/forums/<string:forum_id>/threads', methods=['POST'])
+@token_required
+def create_thread(current_user, forum_id):
+    """
+    Creates a new top-level discussion thread.
+    Expects JSON: { "Title": "...", "Content": "..." }
+    """
+    try:
+        data = request.get_json()
+        title = data.get('Title', '').strip()
+        content = data.get('Content', '').strip()
+        author_id = current_user[0] # UserID from token
+
+        if not title or not content:
+            return jsonify({"error": "Title and Content are required for a new thread."}), 400
+
+        #thread_id = str(uuid.uuid4())[:8]
+        created_date = datetime.now(timezone.utc).date()
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Parent_ThreadID is NULL for a new discussion starter
+        cursor.execute("""
+            INSERT INTO Discussion_Thread (ForumID, Title, Content, CreatedDate, Author, Parent_ThreadID)
+            VALUES (%s, %s, %s, %s, %s, NULL)
+        """, (forum_id, title, content, created_date, author_id))
+        
+        conn.commit()
+        new_id= cursor.lastrowid 
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": "Thread created successfully.", "ThreadID": new_id}), 201
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to create thread: {str(e)}"}), 500
+
+
+@app.route('/threads/<string:thread_id>/replies', methods=['POST'])
+@token_required
+def reply_to_thread(current_user, thread_id):
+    """
+    Adds a reply to an existing thread or another reply.
+    Expects JSON: { "Content": "..." }
+    """
+    try:
+        data = request.get_json()
+        content = data.get('Content', '').strip()
+        author_id = current_user[0]
+
+        if not content:
+            return jsonify({"error": "Content is required for a reply."}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # 1. Verify parent exists and get the ForumID so the reply stays in the same forum
+        cursor.execute("SELECT ForumID FROM Discussion_Thread WHERE ThreadID = %s", (thread_id,))
+        parent = cursor.fetchone()
+        
+        if not parent:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "The thread or post you are replying to does not exist."}), 404
+
+        #new_reply_id = str(uuid.uuid4())[:8]
+        created_date = datetime.now(timezone.utc).date()
+
+        # 2. Insert the reply
+        cursor.execute("""
+            INSERT INTO Discussion_Thread (ForumID, Title, Content, CreatedDate, Author, Parent_ThreadID)
+            VALUES (%s, NULL, %s, %s, %s, %s)
+        """, (parent['ForumID'], content, created_date, author_id, thread_id))
+        
+        conn.commit()
+        new_reply_id = cursor.lastrowid
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": "Reply posted successfully.", "ReplyID": new_reply_id}), 201
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to post reply: {str(e)}"}), 500
+
 
 #@app.route('', methods=[''])
 #def course_container():
@@ -1121,4 +1230,4 @@ def report():
 
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True, host ='0.0.0', port=5000) 

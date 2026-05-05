@@ -61,6 +61,37 @@ EVENT_DESCRIPTIONS = {
     ]
 }
 
+#Title categorized by academic event types
+DISCUSSION_TITLES = [
+    # Lecture & Tutorial Based
+    "Question regarding today's lecture on {topic}",
+    "Clarification needed: {topic} slides",
+    "Follow-up on the tutorial example for {topic}",
+    "Thoughts on {topic} vs {related_topic} from class?",
+    "Interesting real-world application of {topic}",
+
+    # Lab Based
+    "Lab Troubleshooting: Stuck on step {step} for {topic}",
+    "Help needed with the {topic} lab environment",
+    "Discussion on {topic} lab results and observations",
+    "Tips for completing the {topic} lab faster",
+
+    # Assignment Based
+    "Clarifying requirements for the {topic} assignment",
+    "Struggling with part {step} of the {topic} project",
+    "Formatting questions for the {topic} submission",
+    "Anyone want to peer-review the {topic} assignment draft?",
+    "Resource for understanding {topic} in the assignment",
+
+    # Exam & Study Based
+    "Study group for the upcoming {topic} exam",
+    "Practice questions for {topic} and {related_topic}",
+    "Exam preparation: Which {topic} concepts are most important?",
+    "Reviewing {topic} for the mid-term",
+    "Correction regarding the {topic} problem set"
+]
+
+
 # Generic academic discussion starters for forums
 DISCUSSION_STARTERS = [
     "Does anyone have suggestions on how to approach this concept?",
@@ -113,6 +144,20 @@ TOPIC_KEYWORDS = {
     "NURS": ["care", "patient", "vital signs", "medication", "recovery"],
     "PHAR": ["medication", "dosage", "interaction", "side effects", "pharmacokinetics"],
 }
+
+def generate_thread_title(dept_code):
+    # Pulls keywords based on the department to make titles relevant
+    keywords = TOPIC_KEYWORDS.get(dept_code, ["topic", "concept", "material"])
+    topic = random.choice(keywords)
+    related = random.choice(keywords)
+    template = random.choice(DISCUSSION_TITLES)
+    
+    # Formats the template with the selected topics
+    title = template.format(topic=topic, related_topic=related, step=random.randint(1, 5))
+    
+    # Escapes single quotes for SQL safety
+    return title.replace("'", "''")
+
 
 # Function to generate realistic event descriptions
 def generate_event_description(event_type, dept_code):
@@ -822,10 +867,10 @@ for sid, courses in student_courses.items():
 f = open("OURVLE_Clone_Discussion_Threads.sql", "w")
 f.write("USE OURVLECloneDatabase;\n")
 f.write("TRUNCATE TABLE Discussion_Thread;\n\n")
-f.write("-- Discussion Threads ────────────────────────────────────────────────────────────────────\n")
+f.write("-- Discussion Threads ---------------------------------------------------------------\n")
 thread_id  = 1
 # track top-level threads per forum so replies can reference them
-forum_threads = {}   # forum_id -> [thread_ids of top-level posts]
+#forum_threads = {}   # forum_id -> [thread_ids of top-level posts]
 
 all_user_ids = [str(sid) for sid in student_ids] + lecturer_ids  # pool of valid authors
 
@@ -835,8 +880,10 @@ for cid in course_ids:
     dept = lecturer_dept[lecturer_id]
     dept_code_for_course = dept_code[dept]
 
+    thread_titles = {}
+    
     for fid in course_forums[cid]:
-        forum_threads[fid] = []
+        forum_threads = []
         num_threads = random.randint(4, 12)   # top-level posts per forum
 
         for _ in range(num_threads):
@@ -851,18 +898,21 @@ for cid in course_ids:
                 content = generate_forum_thread(dept_code_for_course)
             else:  # 40% chance of resource/announcement type post
                 content = generate_forum_reply(dept_code_for_course)
-            
+            title = generate_thread_title(dept_code_for_course)
+            safe_title = title.replace("'", "''")
             created_date = random_date(SEMESTER_START, SEMESTER_END)
             # NULL for parent_thread_id since this is a top-level post
             f.write(
                 f"INSERT INTO Discussion_Thread VALUES "
-                f"({thread_id}, {fid}, '{content}', '{created_date}', '{author}', NULL);\n"
+                f"(NULL, {fid}, '{safe_title}', '{content}', '{created_date}', '{author}', NULL);\n"
             )
-            forum_threads[fid].append(thread_id)
+            # Store the title using the current thread_id as the key
+            thread_titles[thread_id] = title
+            forum_threads.append(thread_id)
             thread_id += 1
 
         # Replies — each top-level thread gets 0-6 replies
-        for parent_tid in forum_threads[fid]:
+        for parent_tid in forum_threads:
             num_replies = random.randint(0, 6)
             for _ in range(num_replies):
                 if enrolled_students and random.random() < 0.80:
@@ -870,14 +920,18 @@ for cid in course_ids:
                 else:
                     author = lecturer_id
 
+                # Fetch the parent title and prepend "Re: "
+                parent_title = thread_titles.get(parent_tid, "Discussion")
+                reply_title = f"Re: {parent_title}".replace("'", "''")
                 # Generate realistic reply content
                 content = generate_forum_reply(dept_code_for_course)
                 created_date = random_date(SEMESTER_START, SEMESTER_END)
                 f.write(
                     f"INSERT INTO Discussion_Thread VALUES "
-                    f"({thread_id}, {fid}, '{content}', '{created_date}', '{author}', {parent_tid});\n"
+                    f"(NULL, {fid}, '{reply_title}', '{content}', '{created_date}', '{author}', {parent_tid});\n"
                 )
                 thread_id += 1
+
 
 f.write("\n")
 f.close()
