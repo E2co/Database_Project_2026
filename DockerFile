@@ -1,22 +1,30 @@
 # Use a slim Python image
 FROM python:3.10-slim
 
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 # Create and switch to this directory INSIDE the container
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
+# Install build dependencies and clean up in one layer to reduce image size
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
-# 1. Copy requirements from the local 'server' folder to the container
+# Copy requirements first (better layer caching)
 COPY server/requirements.txt .
 
-# 2. Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Upgrade pip and install dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# 3. Copy everything from your local 'server' folder into the container's /app
+# Copy everything from your local 'server' folder into the container's /app
 COPY server/ .
 
-# 4. Gunicorn needs to find 'app' inside 'app.py'
-# Since we copied the contents of /server directly into /app, 
-# app.py is now at the root of /app inside the container.
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "app:app"]
+# Expose the port Gunicorn will run on
+EXPOSE 10000
+
+# Run Gunicorn with worker settings optimized for Render
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "2", "--threads", "4", "--timeout", "120", "app:app"]
