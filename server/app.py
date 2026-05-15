@@ -94,6 +94,7 @@ def token_required(f):
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
             conn = get_db_connection()
             cursor = conn.cursor()
+            # Uses PRIMARY KEY index on ID
             cursor.execute("""
                         SELECT * FROM User
                         WHERE ID = %s
@@ -135,6 +136,7 @@ def register_user():
 
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Uses index on Email column for faster lookup
         cursor.execute("""
                     SELECT Email 
                     FROM User
@@ -180,6 +182,7 @@ def login():
 
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Uses index on Email column for fast lookup
         cursor.execute("""
                     SELECT ID, UserID, Email, Password 
                     FROM User 
@@ -279,7 +282,7 @@ def create_course(current_user):
         conn = get_db_connection()
         cursor = conn.cursor()
  
-        # CourseCode must be unique
+        # Uses unique index on CourseCode
         cursor.execute("SELECT CourseID FROM Course WHERE CourseCode = %s", (course_code,))
         if cursor.fetchone():
             cursor.close()
@@ -288,13 +291,14 @@ def create_course(current_user):
  
         # If a lecturer is supplied up-front, validate them
         if lecturer_id:
+            # Uses PRIMARY KEY index on LecturerID
             cursor.execute("SELECT LecturerID FROM Lecturer WHERE LecturerID = %s", (lecturer_id,))
             if not cursor.fetchone():
                 cursor.close()
                 conn.close()
                 return jsonify({"error": "Lecturer not found."}), 404
  
-            # Enforce max 5 courses per lecturer
+            # Uses index on LecturerID in Course table
             cursor.execute("SELECT COUNT(*) FROM Course WHERE LecturerID = %s", (lecturer_id,))
             lec_count = cursor.fetchone()[0]
             if lec_count >= 5:
@@ -347,21 +351,21 @@ def register_for_course(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
  
-        # Verify the course exists
+        # Verify the course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
  
-        # Verify the student exists
+        # Verify the student exists - uses PRIMARY KEY index
         cursor.execute("SELECT StudentID FROM Student WHERE StudentID = %s", (student_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Student not found."}), 404
  
-        # Prevent duplicate enrolment
+        # Prevent duplicate enrolment - uses composite index on (StudentID, CourseID)
         cursor.execute(
             "SELECT StudentID FROM Enrollment WHERE StudentID = %s AND CourseID = %s",
             (student_id, course_id)
@@ -371,7 +375,7 @@ def register_for_course(current_user, course_id):
             conn.close()
             return jsonify({"error": "Student is already enrolled in this course."}), 409
  
-        # Enforce max 6 courses per student
+        # Enforce max 6 courses per student - uses index on StudentID
         cursor.execute("SELECT COUNT(*) FROM Enrollment WHERE StudentID = %s", (student_id,))
         current_count = cursor.fetchone()[0]
         if current_count >= 6:
@@ -407,7 +411,7 @@ def assign_lecturer(current_user, course_id):
     Only admins may do this.
     """
     try:
-        user_role = current_user[4]
+        user_role = current_user[5]
         if user_role.lower() != 'admin':
             return jsonify({"error": "Access denied. Only admins can assign lecturers."}), 403
  
@@ -422,21 +426,21 @@ def assign_lecturer(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
  
-        # Verify course exists
+        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
  
-        # Verify lecturer exists
+        # Verify lecturer exists - uses PRIMARY KEY index
         cursor.execute("SELECT LecturerID FROM Lecturer WHERE LecturerID = %s", (lecturer_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Lecturer not found."}), 404
  
-        # Enforce max 5 courses per lecturer (exclude this course in case of reassignment)
+        # Enforce max 5 courses per lecturer - uses index on LecturerID
         cursor.execute(
             "SELECT COUNT(*) FROM Course WHERE LecturerID = %s AND CourseID != %s",
             (lecturer_id, course_id)
@@ -474,6 +478,7 @@ def assign_lecturer(current_user, course_id):
 def retrieve_courses():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes on CourseID and LecturerID
     cursor.execute("""
                     SELECT C.CourseID, C.CourseName, C.CourseCode,
                         C.LecturerID, L.Name AS LecturerName
@@ -492,6 +497,7 @@ def retrieve_courses():
 def retrieve_std_courses(student_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Enrollment.StudentID, Enrollment.CourseID, Course.CourseID
     cursor.execute("""
                     SELECT C.CourseID, C.CourseName, C.CourseCode,
                         C.LecturerID, L.Name AS LecturerName
@@ -512,6 +518,7 @@ def retrieve_std_courses(student_id):
 def retrieve_lec_courses(lecturer_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses index on LecturerID in Course table
     cursor.execute("""
                     SELECT C.CourseID, C.CourseName, C.CourseCode,
                         C.LecturerID, L.Name AS LecturerName
@@ -535,12 +542,12 @@ def retrieve_lec_courses(lecturer_id):
 def retrieve_participants(course_code):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Course.CourseCode, Enrollment.CourseID, Enrollment.StudentID
     cursor.execute("""
                     SELECT S.FirstName, S.LastName, S.Major 
                     FROM Student S 
-                    INNER JOIN Enrollment E 
-                    INNER JOIN Course C
-                    ON C.CourseID = E.CourseID AND S.StudentID = E.StudentID
+                    INNER JOIN Enrollment E ON S.StudentID = E.StudentID
+                    INNER JOIN Course C ON C.CourseID = E.CourseID
                     WHERE C.CourseCode = %s
                     """, (course_code,))
     courses = cursor.fetchall()
@@ -559,11 +566,11 @@ def retrieve_participants(course_code):
 def retrieve_calender_events(course_code):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Course.CourseCode, Calendar_Event.CourseID
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
-                    INNER JOIN Course C
-                    ON C.CourseID = CE.CourseID
+                    INNER JOIN Course C ON C.CourseID = CE.CourseID
                     WHERE C.CourseCode = %s
                     """, (course_code,))
     courses = cursor.fetchall()
@@ -574,20 +581,16 @@ def retrieve_calender_events(course_code):
     else:
         return jsonify({"error": "No calendar events for this course."}), 404
 
-#@app.route('/calendar_events/<string:course_code>', methods=['GET'])
-#def retrieve_calender_events_date():
-#    pass
-
 @app.route('/calendar_events/<int:student_id>', methods=['GET'])
 def retrieve_cal_events_student(student_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Enrollment.StudentID, Calendar_Event.CourseID
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
-                    INNER JOIN Course C
-                    INNER JOIN Enrollment E
-                    ON C.CourseID = CE.CourseID AND C.CourseID = E.CourseID
+                    INNER JOIN Course C ON C.CourseID = CE.CourseID
+                    INNER JOIN Enrollment E ON C.CourseID = E.CourseID
                     WHERE E.StudentID = %s
                     """, (student_id,))
     courses = cursor.fetchall()
@@ -596,21 +599,21 @@ def retrieve_cal_events_student(student_id):
     if courses:
         return jsonify(courses)
     else:
-        return jsonify({"error": "No calendar events for this student at the specified date."}), 404
+        return jsonify({"error": "No calendar events for this student."}), 404
 
 
 @app.route('/calendar_events/<int:student_id>/<string:event_date>', methods=['GET'])
 def retrieve_cal_events_dateandstudent(student_id, event_date):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Enrollment.StudentID, Calendar_Event.EventDate
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
-                    INNER JOIN Course C
-                    INNER JOIN Enrollment E
-                    ON C.CourseID = CE.CourseID AND C.CourseID = E.CourseID
+                    INNER JOIN Course C ON C.CourseID = CE.CourseID
+                    INNER JOIN Enrollment E ON C.CourseID = E.CourseID
                     WHERE E.StudentID = %s AND CE.EventDate = %s
-                    """, (student_id,event_date,))
+                    """, (student_id, event_date,))
     courses = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -699,6 +702,7 @@ def retrieve_forums(course_code):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
+        # Uses indexes: Course.CourseCode, Discussion_Forum.CourseID
         cursor.execute("""
             SELECT DF.ForumID, DF.ForumTitle, DF.CourseID
             FROM Discussion_Forum DF
@@ -728,6 +732,7 @@ def discussion_thread(forum_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
+        # Uses index on Discussion_Thread.ForumID
         cursor.execute("""
             SELECT ThreadID, ForumID, Title, Content, CreatedDate, Author, Parent_ThreadID
             FROM Discussion_Thread
@@ -735,7 +740,7 @@ def discussion_thread(forum_id):
             ORDER BY CreatedDate ASC
         """, (forum_id,))
 
-        threads= cursor.fetchall()
+        threads = cursor.fetchall()
         cursor.close()
         conn.close()
 
@@ -778,7 +783,7 @@ def create_thread(current_user, forum_id):
         """, (forum_id, title, content, created_date, author_id))
         
         conn.commit()
-        new_id= cursor.lastrowid 
+        new_id = cursor.lastrowid 
         cursor.close()
         conn.close()
 
@@ -806,7 +811,7 @@ def reply_to_thread(current_user, thread_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # 1. Verify parent exists and get the ForumID so the reply stays in the same forum
+        # 1. Verify parent exists and get the ForumID - uses PRIMARY KEY index
         cursor.execute("SELECT ForumID FROM Discussion_Thread WHERE ThreadID = %s", (thread_id,))
         parent = cursor.fetchone()
         
@@ -846,16 +851,17 @@ def retrieve_course_content(course_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Verify course exists
+        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
 
+        # Uses composite index on (CourseID, SectionTitle)
         cursor.execute("""
             SELECT CC.ContentID, CC.SectionTitle, CC.ContentType, CC.URL, CC.LecturerID, CC.UploadDate
-            FROM Course_Content CC INNER JOIN Course C ON CC.CourseID = C.CourseID
+            FROM Course_Content CC
             WHERE CC.CourseID = %s
             ORDER BY SectionTitle, UploadDate
         """, (course_id,))
@@ -884,7 +890,7 @@ def add_course_content(current_user, course_id):
     Content is organised by section.
     """
     try:
-        user_role = current_user[4]
+        user_role = current_user[5]
         if user_role.lower() != 'lecturer':
             return jsonify({"error": "Access denied. Only lecturers can add course content."}), 403
 
@@ -905,14 +911,14 @@ def add_course_content(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verify course exists
+        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
 
-        # Verify lecturer is assigned to this course
+        # Verify lecturer is assigned to this course - uses index on LecturerID
         lecturer_id = current_user[0]   # UserID == LecturerID in your schema
         cursor.execute(
             "SELECT CourseID FROM Course WHERE CourseID = %s AND LecturerID = %s",
@@ -960,12 +966,14 @@ def retrieve_assignments(course_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
+        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
 
+        # Uses index on Assignment.CourseID
         cursor.execute("""
             SELECT AssignmentID, Title, Description, DueDate
             FROM Assignment
@@ -991,7 +999,7 @@ def retrieve_assignments(course_id):
 def create_assignment(current_user, course_id):
     """Lecturer creates an assignment for a course."""
     try:
-        user_role = current_user[4]
+        user_role = current_user[5]
         if user_role.lower() != 'lecturer':
             return jsonify({"error": "Access denied. Only lecturers can create assignments."}), 403
 
@@ -1009,6 +1017,7 @@ def create_assignment(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
@@ -1016,6 +1025,7 @@ def create_assignment(current_user, course_id):
             return jsonify({"error": "Course not found."}), 404
 
         lecturer_id = current_user[0]
+        # Verify lecturer is assigned - uses index on LecturerID
         cursor.execute(
             "SELECT CourseID FROM Course WHERE CourseID = %s AND LecturerID = %s",
             (course_id, lecturer_id)
@@ -1055,7 +1065,7 @@ def create_assignment(current_user, course_id):
 def submit_assignment(current_user, assignment_id):
     """Student submits an assignment."""
     try:
-        user_role = current_user[4]
+        user_role = current_user[5]
         if user_role.lower() != 'student':
             return jsonify({"error": "Access denied. Only students can submit assignments."}), 403
 
@@ -1072,7 +1082,7 @@ def submit_assignment(current_user, assignment_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verify assignment exists
+        # Verify assignment exists and get CourseID - uses PRIMARY KEY index
         cursor.execute("SELECT AssignmentID, CourseID FROM Assignment WHERE AssignmentID = %s", (assignment_id,))
         assignment = cursor.fetchone()
         if not assignment:
@@ -1082,7 +1092,7 @@ def submit_assignment(current_user, assignment_id):
 
         course_id = assignment[1]
 
-        # Verify student is enrolled in the course
+        # Verify student is enrolled in the course - uses composite index on (StudentID, CourseID)
         cursor.execute(
             "SELECT StudentID FROM Enrollment WHERE StudentID = %s AND CourseID = %s",
             (student_id, course_id)
@@ -1092,7 +1102,7 @@ def submit_assignment(current_user, assignment_id):
             conn.close()
             return jsonify({"error": "Student is not enrolled in this course."}), 403
 
-        # Prevent duplicate submission
+        # Prevent duplicate submission - uses index on (AssignmentID, StudentID)
         cursor.execute(
             "SELECT SubmissionID FROM Submission WHERE AssignmentID = %s AND StudentID = %s",
             (assignment_id, student_id)
@@ -1135,7 +1145,7 @@ def grade_submission(current_user, assignment_id):
     The grade is also factored into the student's overall average.
     """
     try:
-        user_role = current_user[4]
+        user_role = current_user[5]
         if user_role.lower() != 'lecturer':
             return jsonify({"error": "Access denied. Only lecturers can submit grades."}), 403
 
@@ -1155,7 +1165,7 @@ def grade_submission(current_user, assignment_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verify submission exists for this student & assignment
+        # Verify submission exists for this student & assignment - uses index on (AssignmentID, StudentID)
         cursor.execute("""
             SELECT SubmissionID FROM Submission
             WHERE AssignmentID = %s AND StudentID = %s
@@ -1169,7 +1179,7 @@ def grade_submission(current_user, assignment_id):
         submission_id = submission[0]
         lecturer_id   = current_user[0]
 
-        # Prevent duplicate grading
+        # Prevent duplicate grading - uses index on SubmissionID
         cursor.execute(
             "SELECT GradeID FROM Grade WHERE SubmissionID = %s", (submission_id,)
         )
@@ -1210,6 +1220,7 @@ def grade_submission(current_user, assignment_id):
 def fifty_or_more_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Enrollment.CourseID, Course.CourseID
     cursor.execute("""
                     SELECT C.CourseName, C.CourseCode, COUNT(E.StudentID) AS EnrolledStudents
                     FROM Course C
@@ -1229,6 +1240,7 @@ def fifty_or_more_report():
 def five_or_more_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Enrollment.StudentID, Student.StudentID
     cursor.execute("""
                     SELECT S.FirstName, S.LastName, S.Major, COUNT(E.CourseID) AS EnrolledCourses
                     FROM Student S
@@ -1248,6 +1260,7 @@ def five_or_more_report():
 def three_or_more_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Course.LecturerID, Lecturer.LecturerID
     cursor.execute("""
                     SELECT L.Name, L.Department, COUNT(C.CourseID) AS CoursesTaught
                     FROM Lecturer L
@@ -1267,11 +1280,11 @@ def three_or_more_report():
 def top_ten_enrolled_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Enrollment.CourseID, Course.CourseID
     cursor.execute("""
                     SELECT CourseName, CourseCode, COUNT(E.StudentID) AS EnrolledStudents
                     FROM Course C
-                    INNER JOIN Enrollment E
-                    ON C.CourseID = E.CourseID
+                    INNER JOIN Enrollment E ON C.CourseID = E.CourseID
                     GROUP BY C.CourseID, C.CourseName, C.CourseCode
                     ORDER BY COUNT(E.StudentID) DESC
                     LIMIT 10
@@ -1291,12 +1304,14 @@ def get_student_average(student_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
+        # Verify student exists - uses PRIMARY KEY index
         cursor.execute("SELECT StudentID FROM Student WHERE StudentID = %s", (student_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Student not found."}), 404
 
+        # Uses indexes: Submission.StudentID, Grade.SubmissionID
         cursor.execute("""
             SELECT ROUND(AVG(G.Grade), 2) AS OverallAverage
             FROM Grade G
@@ -1320,6 +1335,7 @@ def get_student_average(student_id):
 def top_ten_students_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Uses indexes: Submission.StudentID, Grade.SubmissionID
     cursor.execute("""
                     SELECT St.FirstName, St.LastName, St.Major, AVG(CAST(G.Grade AS Decimal (10,2))) AS AverageGrade
                     FROM Student St
@@ -1356,6 +1372,7 @@ def get_submissions(current_user, assignment_id):
         cursor = conn.cursor(dictionary=True)
 
         # Verify assignment belongs to one of this lecturer's courses
+        # Uses indexes: Assignment.AssignmentID, Course.LecturerID
         cursor.execute("""
             SELECT A.AssignmentID, A.CourseID
             FROM Assignment A
@@ -1369,6 +1386,7 @@ def get_submissions(current_user, assignment_id):
             conn.close()
             return jsonify({"error": "Assignment not found or you are not the lecturer for this course."}), 404
 
+        # Uses indexes: Submission.AssignmentID, Submission.StudentID, User.UserID
         cursor.execute("""
             SELECT
                 S.SubmissionID,

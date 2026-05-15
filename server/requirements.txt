@@ -14,3 +14,6 @@ Flask-CORS==4.0.0
 
 # Utilities
 uuid==1.30
+
+# Production Server (Required for Docker)
+gunicorn==21.2.0
