@@ -1,0 +1,558 @@
+{
+  "info": {
+    "_postman_id": "d0d47e90-58de-477a-89ff-1d9f931926bc",
+    "name": "COMP3161_Project",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "53127120",
+    "_collection_link": "https://go.postman.co/collection/53127120-d0d47e90-58de-477a-89ff-1d9f931926bc?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "courses_specific_student",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/std/630197554",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "std",
+            "630197554"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "courses_specific_lecturer",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/lecturer/BMNG436",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "lecturer",
+            "BMNG436"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "courses",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/retrieve",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "retrieve"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "course_members",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/course_members/CHEM1569",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "course_members",
+            "CHEM1569"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "calendar-events_specific_course",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/calendar_events/BIOL552",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "calendar_events",
+            "BIOL552"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "calendar-events_specific-student_specific-date",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/calendar_events/630160787/2024-10-21",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "calendar_events",
+            "630160787",
+            "2024-10-21"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "register",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"UserID\": \"COMP289\",\r\n  \"FirstName\": \"Mary\",\r\n  \"LastName\": \"Mcdowell\",\r\n  \"Email\": \"mary_mcdowell@vle.edu.jm\",\r\n  \"Role\": \"Lecturer\",\r\n  \"Password\": \"mmcdowell123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/register",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "login",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"Email\": \"admin_123@vle.edu.jm\",\r\n    \"Password\": \"admin123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/login",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "lecturer_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/three_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "three_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": ">50_students_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/fifty_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "fifty_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": ">5_courses_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/five_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "five_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "top10_courses_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/top_ten_enrolled",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "top_ten_enrolled"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create_course",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/create",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "create"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "register_course",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/630197554/enroll",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "630197554",
+            "enroll"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "assign_course",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/lecturer/6277",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "lecturer",
+            "6277"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create_calendar_events",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/calendar_events",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "calendar_events"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create_forums",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/forums",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "forums"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "forums_specific_course",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/forums/COMP1122",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "forums",
+            "COMP1122"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get_content_spec._course",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/dashboard/content/C831",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "dashboard",
+            "content",
+            "C831"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "add_course_content",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/content/COMP1122",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "content",
+            "COMP1122"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get_assignment",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/courses/assignments/63011926",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "assignments",
+            "63011926"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create_assignment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/courses/assignments/BMNG1234",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "courses",
+            "assignments",
+            "BMNG1234"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "submit_assignment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST}}/assignments/submit/1234",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "assignments",
+            "submit",
+            "1234"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "grade_assignment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/assignments/grade/1234",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "assignments",
+            "grade",
+            "1234"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": ">3_lecturers_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/three_or_more",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "three_or_more"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "student_grade_average",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/students/average/630160017",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "students",
+            "average",
+            "630160017"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Dashboard",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/dashboard",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "dashboard"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "top10_students_report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{HOST}}/reports/top_ten_students",
+          "host": [
+            "{{HOST}}"
+          ],
+          "path": [
+            "reports",
+            "top_ten_students"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

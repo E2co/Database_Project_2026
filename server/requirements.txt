@@ -1,0 +1,16 @@
+# Flask Framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Database
+mysql-connector-python==8.2.0
+
+# Authentication & Security
+PyJWT==2.8.1
+python-dotenv==1.0.0
+
+# CORS Support
+Flask-CORS==4.0.0
+
+# Utilities
+uuid==1.30
