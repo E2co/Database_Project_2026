@@ -1,29 +1,34 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from "@tailwindcss/vite"
-import path from "path"
+import path from 'path'
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    react(), 
-    tailwindcss()
-  ],
+  plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   server: {
+    port: 5173,
     proxy: {
-      "/login": {
-        target: "http://127.0.0.1:5000",
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://localhost:5000',
         changeOrigin: true,
-      },
-      "/api": {
-        target: "http://127.0.0.1:5000",
-        changeOrigin: true,
-      },
-    },
+      }
+    }
   },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Ignore certain warnings
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
+        if (warning.code === 'SOURCEMAP_ERROR') return
+        if (warning.message && warning.message.includes('is declared but its value is never read')) return
+        warn(warning)
+      }
+    }
+  }
 })

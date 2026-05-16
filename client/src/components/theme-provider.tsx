@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+// @ts-ignore
 import {
   ThemeProvider as NextThemesProvider,
   type ThemeProviderProps,

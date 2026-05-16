@@ -1,0 +1,23 @@
+services:
+  # Frontend Static Site
+  - type: web
+    name: vleclone-frontend
+    runtime: static
+    repo: https://github.com/E2co/Database_Project_2026.git
+    branch: main
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist  # Change based on your framework
+    envVars:
+      - key: VITE_API_URL
+        value: https://database-project-2026.onrender.com/
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

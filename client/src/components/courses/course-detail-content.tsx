@@ -54,17 +54,12 @@ function TypeIcon({ type }: { type: string }) {
   )
 }
 
-// Helper: get the URL regardless of which field name Flask returns
-function getUrl(item: CourseContent): string {
-  return item.ContentURL ?? "#"
-}
-
 // ─── Main component ────────────────────────────────────────────────────────────
 export function CourseDetailContent() {
 
   const { courseId } = useParams<{ courseId: string }>()
 
-  const { user, isLecturer, isStudent } = useAuth()
+  const { isLecturer, isStudent } = useAuth()
 
   const [course,      setCourse]      = useState<Course | null>(null)
   const [content,     setContent]     = useState<CourseContent[]>([])
@@ -74,7 +69,7 @@ export function CourseDetailContent() {
   const [events,      setEvents]      = useState<CalendarEvent[]>([])
 
   const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState<string | null>(null)
+  const [,     setError]       = useState<string | null>(null)
   const [activeTab,   setActiveTab]   = useState("content")
 
   // Add-content form (lecturer only)
