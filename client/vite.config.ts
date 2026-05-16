@@ -28,10 +28,8 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist',
-    sourcemap: false,
-    minify: 'terser',
-    cssMinify: true,  // ADD THIS
-    reportCompressedSize: false,
-  },
+  outDir: 'dist',
+  sourcemap: false,
+  minify: 'terser',
+},
 })
