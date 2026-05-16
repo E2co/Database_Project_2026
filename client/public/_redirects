@@ -1,2 +1,2 @@
-# public/_redirects
 /* /index.html 200
+/assets/* /assets/:splat 200

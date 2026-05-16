@@ -4,7 +4,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/',  // Add this line - critical for Render deployment
+  base: './',  // Change from '/' to './' for relative paths
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -24,7 +24,6 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       onwarn(warning, warn) {
-        // Ignore certain warnings
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
         if (warning.code === 'SOURCEMAP_ERROR') return
         if (warning.message && warning.message.includes('is declared but its value is never read')) return
