@@ -4,6 +4,9 @@ module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/**/*.css",  // Add this
+    "./components/**/*.{js,ts,jsx,tsx}",  // Add if you have components folder
+    
   ],
   theme: {
     extend: {
@@ -48,7 +51,7 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Geist Variable", "sans-serif"],
+        sans: ["Geist Variable", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Fira Code", "monospace"],
       },
     },
