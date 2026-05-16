@@ -4,11 +4,14 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: './',  // Change from '/' to './' for relative paths
+  base: './',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  css: {
+    postcss: './postcss.config.js',
   },
   server: {
     port: 5173,
@@ -22,13 +25,5 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    rollupOptions: {
-      onwarn(warning, warn) {
-        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
-        if (warning.code === 'SOURCEMAP_ERROR') return
-        if (warning.message && warning.message.includes('is declared but its value is never read')) return
-        warn(warning)
-      }
-    }
   }
 })
