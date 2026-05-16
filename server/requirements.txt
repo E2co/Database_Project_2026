@@ -12,11 +12,10 @@ python-dotenv>=1.0.0,<2.0.0
 # CORS Support
 Flask-CORS>=4.0.0,<5.0.0
 
-# Production Server (Required for Docker)
+# Production Server
 gunicorn>=21.0.0,<22.0.0
 
-valkey
-
-valkey[hiredis]
-
-flask-caching
+# Redis/Caching
+redis>=5.0.0
+valkey>=6.0.0
+flask-caching>=2.0.0
