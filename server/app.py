@@ -8,6 +8,9 @@ from dotenv import load_dotenv
 from functools import wraps
 import os
 from flask_cors import CORS
+from flask_caching import Cache
+import valkey
+import json
 
 
 app = Flask(__name__)
@@ -18,6 +21,36 @@ DB_USER = os.getenv("DB_ROOT")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 
+# Redis Configuration
+REDIS_URL = os.getenv("REDIS_URL")
+app.config['CACHE_TYPE'] = 'RedisCache'
+app.config['CACHE_REDIS_URL'] = REDIS_URL
+app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5 minutes default cache timeout
+
+cache = Cache(app)
+
+# Initialize Redis client for more advanced operations
+try:
+    redis_client = valkey.from_url(REDIS_URL, decode_responses=True)
+    # Test connection
+    redis_client.ping()
+    print("Redis connected successfully!")
+except Exception as e:
+    print(f"Redis connection failed: {e}")
+    redis_client = None
+
+# Cache TTL configurations (in seconds)
+CACHE_TTL = {
+    'courses': 300,      # 5 minutes
+    'reports': 600,      # 10 minutes
+    'student_data': 300, # 5 minutes
+    'lecturer_data': 300,# 5 minutes
+    'calendar': 600,     # 10 minutes
+    'forums': 300,       # 5 minutes
+    'assignments': 300,  # 5 minutes
+    'content': 600,      # 10 minutes
+}
+
 CORS(app,
      supports_credentials=True,
      origins=[
@@ -25,10 +58,54 @@ CORS(app,
          "http://127.0.0.1:5173",
          "http://localhost:5174",
          "http://127.0.0.1:5174",
+         os.getenv("FRONTEND_URL", "")
      ])
- 
-# Belt-and-suspenders: manually handle every OPTIONS preflight so the browser
-# always gets a valid CORS response even if flask-cors misses a route.
+
+# ─────────────────────────────────────────────
+#  CACHE HELPER FUNCTIONS
+# ─────────────────────────────────────────────
+def invalidate_course_cache(course_id=None, course_code=None):
+    """Invalidate cache for courses when data changes."""
+    cache.delete('courses_all')
+    cache.delete('courses_top_ten')
+    if course_id:
+        cache.delete(f'course_content_{course_id}')
+    if course_code:
+        cache.delete(f'course_members_{course_code}')
+        cache.delete(f'calendar_events_{course_code}')
+        cache.delete(f'forums_{course_code}')
+
+def invalidate_student_cache(student_id):
+    """Invalidate cache for student data."""
+    cache.delete(f'student_courses_{student_id}')
+    cache.delete(f'student_calendar_{student_id}')
+    cache.delete(f'student_average_{student_id}')
+
+def invalidate_lecturer_cache(lecturer_id):
+    """Invalidate cache for lecturer data."""
+    cache.delete(f'lecturer_courses_{lecturer_id}')
+
+def invalidate_assignment_cache(course_id, assignment_id=None):
+    """Invalidate cache for assignments."""
+    cache.delete(f'assignments_{course_id}')
+    if assignment_id:
+        cache.delete(f'submissions_{assignment_id}')
+
+def get_cached_or_query(cache_key, query_func, ttl=CACHE_TTL['courses']):
+    """Helper function to get data from cache or execute query."""
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+    
+    result = query_func()
+    
+    if result and redis_client:
+        redis_client.setex(cache_key, ttl, json.dumps(result))
+    
+    return jsonify(result) if result else jsonify({"error": "No data found."}), 404 if not result else 200
+
+# Belt-and-suspenders: manually handle every OPTIONS preflight
 @app.before_request
 def handle_preflight():
     if request.method == "OPTIONS":
@@ -38,15 +115,16 @@ def handle_preflight():
             "http://127.0.0.1:5173",
             "http://localhost:5174",
             "http://127.0.0.1:5174",
+            os.getenv("FRONTEND_URL", "")
         ]
         res = app.make_default_options_response()
         if origin in allowed:
-            res.headers["Access-Control-Allow-Origin"]      = origin
+            res.headers["Access-Control-Allow-Origin"] = origin
             res.headers["Access-Control-Allow-Credentials"] = "true"
-            res.headers["Access-Control-Allow-Methods"]     = "GET, POST, PUT, DELETE, OPTIONS"
-            res.headers["Access-Control-Allow-Headers"]     = "Content-Type, Authorization"
+            res.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            res.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         return res
- 
+
 @app.after_request
 def inject_cors_headers(response):
     """Ensure every response carries the correct CORS headers."""
@@ -56,12 +134,13 @@ def inject_cors_headers(response):
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
+        os.getenv("FRONTEND_URL", "")
     ]
     if origin in allowed:
-        response.headers["Access-Control-Allow-Origin"]      = origin
+        response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"]     = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"]     = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
 def get_db_connection():
@@ -69,7 +148,10 @@ def get_db_connection():
         host=DB_HOST,
         user=DB_USER,
         password=DB_PASSWORD,
-        database="OURVLECloneDatabase"
+        database="OURVLECloneDatabase",
+        pool_name="mypool",
+        pool_size=10,
+        pool_reset_session=True
     )
 
 def token_required(f):
@@ -77,13 +159,10 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = None
 
-        # Primary: read from Authorization: Bearer <token> header.
-        # This works reliably in all browsers on localhost without Secure cookies.
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
-            token = auth_header[7:]  # strip "Bearer "
+            token = auth_header[7:]
 
-        # Fallback: cookie (works in production with HTTPS + SameSite=None; Secure)
         if not token:
             token = request.cookies.get('jwt_token')
 
@@ -94,7 +173,6 @@ def token_required(f):
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
             conn = get_db_connection()
             cursor = conn.cursor()
-            # Uses PRIMARY KEY index on ID
             cursor.execute("""
                         SELECT * FROM User
                         WHERE ID = %s
@@ -111,7 +189,6 @@ def token_required(f):
             return jsonify({'message': f'Token is invalid! {str(e)}'}), 401
         return f(current_user, *args, **kwargs)
     return decorated
-
 
 # ─────────────────────────────────────────────
 #  USER REGISTRATION/LOGIN
@@ -136,7 +213,6 @@ def register_user():
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Uses index on Email column for faster lookup
         cursor.execute("""
                     SELECT Email 
                     FROM User
@@ -168,7 +244,6 @@ def register_user():
 @app.route('/login', methods=["POST"])
 def login():
     try:
-
         login_info = request.get_json()
 
         if not login_info:
@@ -182,7 +257,6 @@ def login():
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Uses index on Email column for fast lookup
         cursor.execute("""
                     SELECT ID, UserID, Email, Password 
                     FROM User 
@@ -201,7 +275,6 @@ def login():
             'exp': datetime.now(timezone.utc) + timedelta(hours=1)
             }, app.config['SECRET_KEY'], algorithm="HS256")
         
-        # Ensure token is a string
         if isinstance(token, bytes):
             token = token.decode('utf-8')
 
@@ -211,7 +284,6 @@ def login():
             "ID": existing_user[0]  
         })
 
-        # Cookie kept for HTTPS/production use. Auth now primarily uses Bearer header.
         response.set_cookie('jwt_token', token, httponly=True, secure=False, samesite='Lax', max_age=3600)
 
         return response, 200
@@ -230,16 +302,9 @@ def logout():
 def dashboard(current_user):
     return f"Welcome {current_user[2]} {current_user[3]}! You are logged in."
 
-# ─────────────────────────────────────────────
-#  GET CURRENT USER PROFILE
-# ─────────────────────────────────────────────
 @app.route('/me', methods=['GET'])
 @token_required
 def get_current_user(current_user):
-    """
-    Returns the authenticated user's profile.
-    current_user indexes: 0=ID, 1=UserID, 2=FirstName, 3=LastName, 4=Email, 5=Role
-    """
     return jsonify({
         "ID":        current_user[0],
         "UserID":    current_user[1],
@@ -249,19 +314,12 @@ def get_current_user(current_user):
         "Role":      current_user[5],
     }), 200
 
-
 # ─────────────────────────────────────────────
-#  CREATE/REGISTER FOR COURSES
+#  CREATE/REGISTER FOR COURSES (with cache invalidation)
 # ─────────────────────────────────────────────
-# CREATE COURSE  (Admin only)
 @app.route('/courses/create', methods=['POST'])
 @token_required
 def create_course(current_user):
-    """
-    Only admins can create a course.
-    current_user tuple indexes (from SELECT * FROM User):
-      0=ID, 1=UserID, 2=FirstName, 3=LastName, 4=Email, 5=Role, 6=Password, 7=DateCreated
-    """
     try:
         user_role = current_user[5]
  
@@ -274,7 +332,7 @@ def create_course(current_user):
  
         course_name = course_data.get('CourseName', '').strip()
         course_code = course_data.get('CourseCode', '').strip()
-        lecturer_id = course_data.get('LecturerID', '').strip()   # optional at creation time
+        lecturer_id = course_data.get('LecturerID', '').strip()
  
         if not course_name or not course_code:
             return jsonify({"error": "Missing required fields: CourseName, CourseCode."}), 400
@@ -282,23 +340,19 @@ def create_course(current_user):
         conn = get_db_connection()
         cursor = conn.cursor()
  
-        # Uses unique index on CourseCode
         cursor.execute("SELECT CourseID FROM Course WHERE CourseCode = %s", (course_code,))
         if cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": f"A course with code '{course_code}' already exists."}), 409
  
-        # If a lecturer is supplied up-front, validate them
         if lecturer_id:
-            # Uses PRIMARY KEY index on LecturerID
             cursor.execute("SELECT LecturerID FROM Lecturer WHERE LecturerID = %s", (lecturer_id,))
             if not cursor.fetchone():
                 cursor.close()
                 conn.close()
                 return jsonify({"error": "Lecturer not found."}), 404
  
-            # Uses index on LecturerID in Course table
             cursor.execute("SELECT COUNT(*) FROM Course WHERE LecturerID = %s", (lecturer_id,))
             lec_count = cursor.fetchone()[0]
             if lec_count >= 5:
@@ -316,6 +370,9 @@ def create_course(current_user):
         cursor.close()
         conn.close()
  
+        # Invalidate cache
+        invalidate_course_cache()
+ 
         return jsonify({
             "message": "Course created successfully.",
             "CourseID": course_id,
@@ -329,16 +386,9 @@ def create_course(current_user):
     except Exception as e:
         return jsonify({"error": f"Course creation failed: {str(e)}"}), 500
     
-#  REGISTER FOR COURSE – Student enrolment
 @app.route('/courses/enroll/<string:course_id>', methods=['POST'])
 @token_required
 def register_for_course(current_user, course_id):
-    """
-    Enrol a student in the given course.
-    - Student must exist in the Student table.
-    - Cannot enrol in the same course twice.
-    - A student may not exceed 6 courses in total.
-    """
     try:
         enroll_data = request.get_json()
         if not enroll_data:
@@ -351,21 +401,18 @@ def register_for_course(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
  
-        # Verify the course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
  
-        # Verify the student exists - uses PRIMARY KEY index
         cursor.execute("SELECT StudentID FROM Student WHERE StudentID = %s", (student_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Student not found."}), 404
  
-        # Prevent duplicate enrolment - uses composite index on (StudentID, CourseID)
         cursor.execute(
             "SELECT StudentID FROM Enrollment WHERE StudentID = %s AND CourseID = %s",
             (student_id, course_id)
@@ -375,7 +422,6 @@ def register_for_course(current_user, course_id):
             conn.close()
             return jsonify({"error": "Student is already enrolled in this course."}), 409
  
-        # Enforce max 6 courses per student - uses index on StudentID
         cursor.execute("SELECT COUNT(*) FROM Enrollment WHERE StudentID = %s", (student_id,))
         current_count = cursor.fetchone()[0]
         if current_count >= 6:
@@ -391,6 +437,10 @@ def register_for_course(current_user, course_id):
         cursor.close()
         conn.close()
  
+        # Invalidate student and course cache
+        invalidate_student_cache(student_id)
+        invalidate_course_cache(course_id)
+ 
         return jsonify({
             "message": "Student enrolled successfully.",
             "StudentID": student_id,
@@ -402,14 +452,9 @@ def register_for_course(current_user, course_id):
     except Exception as e:
         return jsonify({"error": f"Enrolment failed: {str(e)}"}), 500
     
-#  ASSIGN LECTURER TO COURSE  (Admin only)
 @app.route('/courses/lecturer/<string:course_id>', methods=['PUT'])
 @token_required
 def assign_lecturer(current_user, course_id):
-    """
-    Assign (or reassign) the single lecturer for a course.
-    Only admins may do this.
-    """
     try:
         user_role = current_user[5]
         if user_role.lower() != 'admin':
@@ -426,21 +471,18 @@ def assign_lecturer(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
  
-        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
  
-        # Verify lecturer exists - uses PRIMARY KEY index
         cursor.execute("SELECT LecturerID FROM Lecturer WHERE LecturerID = %s", (lecturer_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Lecturer not found."}), 404
  
-        # Enforce max 5 courses per lecturer - uses index on LecturerID
         cursor.execute(
             "SELECT COUNT(*) FROM Course WHERE LecturerID = %s AND CourseID != %s",
             (lecturer_id, course_id)
@@ -459,6 +501,10 @@ def assign_lecturer(current_user, course_id):
         cursor.close()
         conn.close()
  
+        # Invalidate cache
+        invalidate_course_cache(course_id)
+        invalidate_lecturer_cache(lecturer_id)
+ 
         return jsonify({
             "message": "Lecturer assigned to course successfully.",
             "CourseID": course_id,
@@ -469,16 +515,15 @@ def assign_lecturer(current_user, course_id):
         return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Lecturer assignment failed: {str(e)}"}), 500
-    
 
 # ─────────────────────────────────────────────
-#  RETRIEVE COURSES
+#  RETRIEVE COURSES (with caching)
 # ─────────────────────────────────────────────
 @app.route('/courses/retrieve', methods=['GET'])
+@cache.cached(timeout=CACHE_TTL['courses'], key_prefix='courses_all')
 def retrieve_courses():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes on CourseID and LecturerID
     cursor.execute("""
                     SELECT C.CourseID, C.CourseName, C.CourseCode,
                         C.LecturerID, L.Name AS LecturerName
@@ -493,11 +538,17 @@ def retrieve_courses():
     else:
         return jsonify({"error": "No courses found."}), 404
 
-@app.route('/courses/std/<int:student_id>', methods=['GET'])
+@app.route('/courses/std/<string:student_id>', methods=['GET'])
 def retrieve_std_courses(student_id):
+    cache_key = f'student_courses_{student_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Enrollment.StudentID, Enrollment.CourseID, Course.CourseID
     cursor.execute("""
                     SELECT C.CourseID, C.CourseName, C.CourseCode,
                         C.LecturerID, L.Name AS LecturerName
@@ -509,16 +560,25 @@ def retrieve_std_courses(student_id):
     courses = cursor.fetchall()
     cursor.close()
     conn.close()
+    
     if courses:
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['courses'], json.dumps(courses))
         return jsonify(courses)
     else:
         return jsonify({"error": "No courses found for this student."}), 404
 
 @app.route('/courses/lecturer/<string:lecturer_id>', methods=['GET'])
 def retrieve_lec_courses(lecturer_id):
+    cache_key = f'lecturer_courses_{lecturer_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses index on LecturerID in Course table
     cursor.execute("""
                     SELECT C.CourseID, C.CourseName, C.CourseCode,
                         C.LecturerID, L.Name AS LecturerName
@@ -529,20 +589,25 @@ def retrieve_lec_courses(lecturer_id):
     courses = cursor.fetchall()
     cursor.close()
     conn.close()
+    
     if courses:
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['courses'], json.dumps(courses))
         return jsonify(courses)
     else:
         return jsonify({"error": "No courses found for this lecturer."}), 404
 
-
-# ─────────────────────────────────────────────
-#  RETRIEVE MEMBERS
-# ─────────────────────────────────────────────
 @app.route('/course_members/<string:course_code>', methods=['GET'])
 def retrieve_participants(course_code):
+    cache_key = f'course_members_{course_code}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Course.CourseCode, Enrollment.CourseID, Enrollment.StudentID
     cursor.execute("""
                     SELECT S.FirstName, S.LastName, S.Major 
                     FROM Student S 
@@ -553,39 +618,56 @@ def retrieve_participants(course_code):
     courses = cursor.fetchall()
     cursor.close()
     conn.close()
+    
     if courses:
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['courses'], json.dumps(courses))
         return jsonify(courses)
     else:
         return jsonify({"error": "No students enrolled for this course."}), 404
-    
 
 # ─────────────────────────────────────────────
-#  RETRIEVE CALENDAR EVENTS
+#  RETRIEVE CALENDAR EVENTS (with caching)
 # ─────────────────────────────────────────────
 @app.route('/calendar_events/<string:course_code>', methods=['GET'])
 def retrieve_calender_events(course_code):
+    cache_key = f'calendar_events_{course_code}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Course.CourseCode, Calendar_Event.CourseID
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
                     INNER JOIN Course C ON C.CourseID = CE.CourseID
                     WHERE C.CourseCode = %s
                     """, (course_code,))
-    courses = cursor.fetchall()
+    events = cursor.fetchall()
     cursor.close()
     conn.close()
-    if courses:
-        return jsonify(courses)
+    
+    if events:
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['calendar'], json.dumps(events))
+        return jsonify(events)
     else:
         return jsonify({"error": "No calendar events for this course."}), 404
 
-@app.route('/calendar_events/<int:student_id>', methods=['GET'])
+@app.route('/calendar_events/<string:student_id>', methods=['GET'])
 def retrieve_cal_events_student(student_id):
+    cache_key = f'student_calendar_{student_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Enrollment.StudentID, Calendar_Event.CourseID
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
@@ -593,20 +675,28 @@ def retrieve_cal_events_student(student_id):
                     INNER JOIN Enrollment E ON C.CourseID = E.CourseID
                     WHERE E.StudentID = %s
                     """, (student_id,))
-    courses = cursor.fetchall()
+    events = cursor.fetchall()
     cursor.close()
     conn.close()
-    if courses:
-        return jsonify(courses)
+    
+    if events:
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['calendar'], json.dumps(events))
+        return jsonify(events)
     else:
         return jsonify({"error": "No calendar events for this student."}), 404
 
-
-@app.route('/calendar_events/<int:student_id>/<string:event_date>', methods=['GET'])
+@app.route('/calendar_events/<string:student_id>/<string:event_date>', methods=['GET'])
 def retrieve_cal_events_dateandstudent(student_id, event_date):
+    cache_key = f'student_calendar_{student_id}_{event_date}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Enrollment.StudentID, Calendar_Event.EventDate
     cursor.execute("""
                     SELECT CE.EventTitle, CE.Description, CE.EventType, CE.EventDate 
                     FROM Calendar_Event CE  
@@ -614,18 +704,17 @@ def retrieve_cal_events_dateandstudent(student_id, event_date):
                     INNER JOIN Enrollment E ON C.CourseID = E.CourseID
                     WHERE E.StudentID = %s AND CE.EventDate = %s
                     """, (student_id, event_date,))
-    courses = cursor.fetchall()
+    events = cursor.fetchall()
     cursor.close()
     conn.close()
-    if courses:
-        return jsonify(courses)
+    
+    if events:
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['calendar'], json.dumps(events))
+        return jsonify(events)
     else:
         return jsonify({"error": "No calendar events for this student at the specified date."}), 404
 
-
-# ─────────────────────────────────────────────
-#  CREATE CALENDAR EVENTS
-# ─────────────────────────────────────────────
 @app.route('/calendar_events', methods=['POST'])
 def create_calender_events():
     try:
@@ -638,11 +727,10 @@ def create_calender_events():
         description = event_data.get('Description', '').strip()
         event_type = event_data.get('EventType', '').strip()
         event_date = event_data.get('EventDate', '').strip()
-
-        """ Need an Event ID """
         
         if not all([course_id, event_title, description, event_type, event_date]):
             return jsonify({"error": "Missing required fields ."}), 400
+            
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -652,15 +740,17 @@ def create_calender_events():
         conn.commit()
         conn.close()
         
+        # Invalidate calendar cache
+        cache.delete(f'calendar_events_{course_id}')
+        
         return jsonify({"message": "Calendar event created successfully."}), 201
     except mysql.connector.Error as e:
         if e.errno == 1452:
             return jsonify({"error": "Course not found."}), 404
         return jsonify({"error": f"Database error: {str(e)}"}), 500
-    
 
 # ─────────────────────────────────────────────
-#  FORUMS
+#  FORUMS (with caching)
 # ─────────────────────────────────────────────
 @app.route('/forums', methods=['POST'])
 def create_forum():
@@ -678,8 +768,6 @@ def create_forum():
         
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        """ Need a Forum ID """
         
         cursor.execute("""
             INSERT INTO Discussion_Forum (CourseID, ForumTitle)
@@ -688,6 +776,9 @@ def create_forum():
         
         conn.commit()
         conn.close()
+        
+        # Invalidate forums cache
+        cache.delete(f'forums_{course_id}')
         
         return jsonify({"message": "Forum created successfully."}), 201
     
@@ -698,11 +789,17 @@ def create_forum():
 
 @app.route('/forums/<string:course_code>', methods=['GET'])
 def retrieve_forums(course_code):
+    cache_key = f'forums_{course_code}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Uses indexes: Course.CourseCode, Discussion_Forum.CourseID
         cursor.execute("""
             SELECT DF.ForumID, DF.ForumTitle, DF.CourseID
             FROM Discussion_Forum DF
@@ -715,24 +812,28 @@ def retrieve_forums(course_code):
         conn.close()
         
         if forums:
+            if redis_client:
+                redis_client.setex(cache_key, CACHE_TTL['forums'], json.dumps(forums))
             return jsonify(forums), 200
         else:
             return jsonify({"error": "No forums found for this course."}), 404
     
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve forums: {str(e)}"}), 500
-    
 
-# ─────────────────────────────────────────────
-#  DISCUSSION THREAD
-# ─────────────────────────────────────────────
 @app.route('/forums/<int:forum_id>/threads', methods=['GET'])
 def discussion_thread(forum_id):
+    cache_key = f'forum_threads_{forum_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Uses index on Discussion_Thread.ForumID
         cursor.execute("""
             SELECT ThreadID, ForumID, Title, Content, CreatedDate, Author, Parent_ThreadID
             FROM Discussion_Thread
@@ -744,8 +845,9 @@ def discussion_thread(forum_id):
         cursor.close()
         conn.close()
 
-        
         if threads:
+            if redis_client:
+                redis_client.setex(cache_key, CACHE_TTL['forums'], json.dumps(threads))
             return jsonify(threads), 200
         else:
             return jsonify({"error": "No threads found for this forum."}), 404
@@ -753,30 +855,23 @@ def discussion_thread(forum_id):
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve threads: {str(e)}"}), 500
 
-#New thread or reply
 @app.route('/forums/<string:forum_id>/threads', methods=['POST'])
 @token_required
 def create_thread(current_user, forum_id):
-    """
-    Creates a new top-level discussion thread.
-    Expects JSON: { "Title": "...", "Content": "..." }
-    """
     try:
         data = request.get_json()
         title = data.get('Title', '').strip()
         content = data.get('Content', '').strip()
-        author_id = current_user[0] # UserID from token
+        author_id = current_user[0]
 
         if not title or not content:
             return jsonify({"error": "Title and Content are required for a new thread."}), 400
 
-        #thread_id = str(uuid.uuid4())[:8]
         created_date = datetime.now(timezone.utc).date()
 
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Parent_ThreadID is NULL for a new discussion starter
         cursor.execute("""
             INSERT INTO Discussion_Thread (ForumID, Title, Content, CreatedDate, Author, Parent_ThreadID)
             VALUES (%s, %s, %s, %s, %s, NULL)
@@ -787,19 +882,18 @@ def create_thread(current_user, forum_id):
         cursor.close()
         conn.close()
 
+        # Invalidate forum threads cache
+        cache.delete(f'forum_threads_{forum_id}')
+        cache.delete(f'forums_*')
+
         return jsonify({"message": "Thread created successfully.", "ThreadID": new_id}), 201
 
     except Exception as e:
         return jsonify({"error": f"Failed to create thread: {str(e)}"}), 500
 
-
 @app.route('/threads/<string:thread_id>/replies', methods=['POST'])
 @token_required
 def reply_to_thread(current_user, thread_id):
-    """
-    Adds a reply to an existing thread or another reply.
-    Expects JSON: { "Content": "..." }
-    """
     try:
         data = request.get_json()
         content = data.get('Content', '').strip()
@@ -811,7 +905,6 @@ def reply_to_thread(current_user, thread_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # 1. Verify parent exists and get the ForumID - uses PRIMARY KEY index
         cursor.execute("SELECT ForumID FROM Discussion_Thread WHERE ThreadID = %s", (thread_id,))
         parent = cursor.fetchone()
         
@@ -820,10 +913,8 @@ def reply_to_thread(current_user, thread_id):
             conn.close()
             return jsonify({"error": "The thread or post you are replying to does not exist."}), 404
 
-        #new_reply_id = str(uuid.uuid4())[:8]
         created_date = datetime.now(timezone.utc).date()
 
-        # 2. Insert the reply
         cursor.execute("""
             INSERT INTO Discussion_Thread (ForumID, Title, Content, CreatedDate, Author, Parent_ThreadID)
             VALUES (%s, NULL, %s, %s, %s, %s)
@@ -834,31 +925,36 @@ def reply_to_thread(current_user, thread_id):
         cursor.close()
         conn.close()
 
+        # Invalidate forum threads cache
+        cache.delete(f'forum_threads_{parent["ForumID"]}')
+
         return jsonify({"message": "Reply posted successfully.", "ReplyID": new_reply_id}), 201
 
     except Exception as e:
         return jsonify({"error": f"Failed to post reply: {str(e)}"}), 500
-    
 
 # ─────────────────────────────────────────────
-#  COURSE CONTENT
+#  COURSE CONTENT (with caching)
 # ─────────────────────────────────────────────
-
 @app.route('/dashboard/content/<string:course_id>', methods=['GET'])
 def retrieve_course_content(course_id):
-    """Retrieve all course content for a particular course, grouped by section."""
+    cache_key = f'course_content_{course_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
 
-        # Uses composite index on (CourseID, SectionTitle)
         cursor.execute("""
             SELECT CC.ContentID, CC.SectionTitle, CC.ContentType, CC.URL, CC.LecturerID, CC.UploadDate
             FROM Course_Content CC
@@ -871,6 +967,8 @@ def retrieve_course_content(course_id):
         conn.close()
 
         if content:
+            if redis_client:
+                redis_client.setex(cache_key, CACHE_TTL['content'], json.dumps(content))
             return jsonify(content), 200
         else:
             return jsonify({"error": "No content found for this course."}), 404
@@ -880,15 +978,9 @@ def retrieve_course_content(course_id):
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve content: {str(e)}"}), 500
 
-
 @app.route('/courses/content/<string:course_id>', methods=['POST'])
 @token_required
 def add_course_content(current_user, course_id):
-    """
-    Lecturer adds content to a course.
-    Content types: link, file, slide
-    Content is organised by section.
-    """
     try:
         user_role = current_user[5]
         if user_role.lower() != 'lecturer':
@@ -911,15 +1003,13 @@ def add_course_content(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
 
-        # Verify lecturer is assigned to this course - uses index on LecturerID
-        lecturer_id = current_user[0]   # UserID == LecturerID in your schema
+        lecturer_id = current_user[0]
         cursor.execute(
             "SELECT CourseID FROM Course WHERE CourseID = %s AND LecturerID = %s",
             (course_id, lecturer_id)
@@ -941,6 +1031,9 @@ def add_course_content(current_user, course_id):
         cursor.close()
         conn.close()
 
+        # Invalidate course content cache
+        cache.delete(f'course_content_{course_id}')
+
         return jsonify({
             "message": "Course content added successfully.",
             "ContentID": content_id,
@@ -954,26 +1047,28 @@ def add_course_content(current_user, course_id):
     except Exception as e:
         return jsonify({"error": f"Failed to add content: {str(e)}"}), 500
 
-
 # ─────────────────────────────────────────────
-#  ASSIGNMENTS
+#  ASSIGNMENTS (with caching)
 # ─────────────────────────────────────────────
-
 @app.route('/courses/assignments/<string:course_id>', methods=['GET'])
 def retrieve_assignments(course_id):
-    """Retrieve all assignments for a course."""
+    cache_key = f'assignments_{course_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Course not found."}), 404
 
-        # Uses index on Assignment.CourseID
         cursor.execute("""
             SELECT AssignmentID, Title, Description, DueDate
             FROM Assignment
@@ -986,6 +1081,8 @@ def retrieve_assignments(course_id):
         conn.close()
 
         if assignments:
+            if redis_client:
+                redis_client.setex(cache_key, CACHE_TTL['assignments'], json.dumps(assignments))
             return jsonify(assignments), 200
         else:
             return jsonify({"error": "No assignments found for this course."}), 404
@@ -993,11 +1090,9 @@ def retrieve_assignments(course_id):
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve assignments: {str(e)}"}), 500
 
-
 @app.route('/courses/assignments/<string:course_id>', methods=['POST'])
 @token_required
 def create_assignment(current_user, course_id):
-    """Lecturer creates an assignment for a course."""
     try:
         user_role = current_user[5]
         if user_role.lower() != 'lecturer':
@@ -1017,7 +1112,6 @@ def create_assignment(current_user, course_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verify course exists - uses PRIMARY KEY index
         cursor.execute("SELECT CourseID FROM Course WHERE CourseID = %s", (course_id,))
         if not cursor.fetchone():
             cursor.close()
@@ -1025,7 +1119,6 @@ def create_assignment(current_user, course_id):
             return jsonify({"error": "Course not found."}), 404
 
         lecturer_id = current_user[0]
-        # Verify lecturer is assigned - uses index on LecturerID
         cursor.execute(
             "SELECT CourseID FROM Course WHERE CourseID = %s AND LecturerID = %s",
             (course_id, lecturer_id)
@@ -1046,6 +1139,9 @@ def create_assignment(current_user, course_id):
         cursor.close()
         conn.close()
 
+        # Invalidate assignments cache
+        invalidate_assignment_cache(course_id)
+
         return jsonify({
             "message": "Assignment created successfully.",
             "AssignmentID": assignment_id,
@@ -1059,11 +1155,9 @@ def create_assignment(current_user, course_id):
     except Exception as e:
         return jsonify({"error": f"Failed to create assignment: {str(e)}"}), 500
 
-
 @app.route('/assignments/submit/<string:assignment_id>', methods=['POST'])
 @token_required
 def submit_assignment(current_user, assignment_id):
-    """Student submits an assignment."""
     try:
         user_role = current_user[5]
         if user_role.lower() != 'student':
@@ -1082,7 +1176,6 @@ def submit_assignment(current_user, assignment_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verify assignment exists and get CourseID - uses PRIMARY KEY index
         cursor.execute("SELECT AssignmentID, CourseID FROM Assignment WHERE AssignmentID = %s", (assignment_id,))
         assignment = cursor.fetchone()
         if not assignment:
@@ -1092,7 +1185,6 @@ def submit_assignment(current_user, assignment_id):
 
         course_id = assignment[1]
 
-        # Verify student is enrolled in the course - uses composite index on (StudentID, CourseID)
         cursor.execute(
             "SELECT StudentID FROM Enrollment WHERE StudentID = %s AND CourseID = %s",
             (student_id, course_id)
@@ -1102,7 +1194,6 @@ def submit_assignment(current_user, assignment_id):
             conn.close()
             return jsonify({"error": "Student is not enrolled in this course."}), 403
 
-        # Prevent duplicate submission - uses index on (AssignmentID, StudentID)
         cursor.execute(
             "SELECT SubmissionID FROM Submission WHERE AssignmentID = %s AND StudentID = %s",
             (assignment_id, student_id)
@@ -1124,6 +1215,9 @@ def submit_assignment(current_user, assignment_id):
         cursor.close()
         conn.close()
 
+        # Invalidate submissions cache
+        cache.delete(f'submissions_{assignment_id}')
+
         return jsonify({
             "message": "Assignment submitted successfully.",
             "SubmissionID": submission_id,
@@ -1136,14 +1230,9 @@ def submit_assignment(current_user, assignment_id):
     except Exception as e:
         return jsonify({"error": f"Submission failed: {str(e)}"}), 500
 
-
 @app.route('/assignments/grade/<string:assignment_id>', methods=['POST'])
 @token_required
 def grade_submission(current_user, assignment_id):
-    """
-    Lecturer grades a student's submission.
-    The grade is also factored into the student's overall average.
-    """
     try:
         user_role = current_user[5]
         if user_role.lower() != 'lecturer':
@@ -1154,7 +1243,7 @@ def grade_submission(current_user, assignment_id):
             return jsonify({"error": "No data provided."}), 400
 
         student_id = data.get('StudentID', '').strip()
-        grade      = data.get('Grade')   # numeric, e.g. 85.5
+        grade      = data.get('Grade')
 
         if not student_id or grade is None:
             return jsonify({"error": "Missing required fields: StudentID, Grade."}), 400
@@ -1165,7 +1254,6 @@ def grade_submission(current_user, assignment_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verify submission exists for this student & assignment - uses index on (AssignmentID, StudentID)
         cursor.execute("""
             SELECT SubmissionID FROM Submission
             WHERE AssignmentID = %s AND StudentID = %s
@@ -1179,7 +1267,6 @@ def grade_submission(current_user, assignment_id):
         submission_id = submission[0]
         lecturer_id   = current_user[0]
 
-        # Prevent duplicate grading - uses index on SubmissionID
         cursor.execute(
             "SELECT GradeID FROM Grade WHERE SubmissionID = %s", (submission_id,)
         )
@@ -1199,6 +1286,10 @@ def grade_submission(current_user, assignment_id):
         cursor.close()
         conn.close()
 
+        # Invalidate student average cache
+        invalidate_student_cache(student_id)
+        cache.delete(f'submissions_{assignment_id}')
+
         return jsonify({
             "message": "Grade submitted successfully.",
             "GradeID": grade_id,
@@ -1212,15 +1303,14 @@ def grade_submission(current_user, assignment_id):
     except Exception as e:
         return jsonify({"error": f"Grading failed: {str(e)}"}), 500
 
-
 # ─────────────────────────────────────────────
-#  REPORTS
+#  REPORTS (with caching)
 # ─────────────────────────────────────────────
 @app.route('/reports/fifty_or_more', methods=['GET'])
+@cache.cached(timeout=CACHE_TTL['reports'], key_prefix='report_fifty_or_more')
 def fifty_or_more_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Enrollment.CourseID, Course.CourseID
     cursor.execute("""
                     SELECT C.CourseName, C.CourseCode, COUNT(E.StudentID) AS EnrolledStudents
                     FROM Course C
@@ -1237,10 +1327,10 @@ def fifty_or_more_report():
         return jsonify({"error": "No course has 50 or more students enrolled."}), 404
 
 @app.route('/reports/five_or_more', methods=['GET'])
+@cache.cached(timeout=CACHE_TTL['reports'], key_prefix='report_five_or_more')
 def five_or_more_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Enrollment.StudentID, Student.StudentID
     cursor.execute("""
                     SELECT S.FirstName, S.LastName, S.Major, COUNT(E.CourseID) AS EnrolledCourses
                     FROM Student S
@@ -1257,10 +1347,10 @@ def five_or_more_report():
         return jsonify({"error": "No student is enrolled in 5 or more courses."}), 404
 
 @app.route('/reports/three_or_more', methods=['GET'])
+@cache.cached(timeout=CACHE_TTL['reports'], key_prefix='report_three_or_more')
 def three_or_more_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Course.LecturerID, Lecturer.LecturerID
     cursor.execute("""
                     SELECT L.Name, L.Department, COUNT(C.CourseID) AS CoursesTaught
                     FROM Lecturer L
@@ -1277,10 +1367,10 @@ def three_or_more_report():
         return jsonify({"error": "No lecturer teaches 3 or more courses."}), 404
 
 @app.route('/reports/top_ten_enrolled', methods=['GET'])
+@cache.cached(timeout=CACHE_TTL['reports'], key_prefix='report_top_ten_enrolled')
 def top_ten_enrolled_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Enrollment.CourseID, Course.CourseID
     cursor.execute("""
                     SELECT CourseName, CourseCode, COUNT(E.StudentID) AS EnrolledStudents
                     FROM Course C
@@ -1296,22 +1386,26 @@ def top_ten_enrolled_report():
         return jsonify(courses)
     else:
         return jsonify({"error": "No courses found."}), 404
-    
+
 @app.route('/students/average/<string:student_id>', methods=['GET'])
 def get_student_average(student_id):
-    """Returns a student's overall grade average across all graded submissions."""
+    cache_key = f'student_average_{student_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Verify student exists - uses PRIMARY KEY index
         cursor.execute("SELECT StudentID FROM Student WHERE StudentID = %s", (student_id,))
         if not cursor.fetchone():
             cursor.close()
             conn.close()
             return jsonify({"error": "Student not found."}), 404
 
-        # Uses indexes: Submission.StudentID, Grade.SubmissionID
         cursor.execute("""
             SELECT ROUND(AVG(G.Grade), 2) AS OverallAverage
             FROM Grade G
@@ -1323,19 +1417,24 @@ def get_student_average(student_id):
         cursor.close()
         conn.close()
 
-        return jsonify({
+        response_data = {
             "StudentID": student_id,
             "OverallAverage": result['OverallAverage'] if result['OverallAverage'] is not None else 0
-        }), 200
+        }
+        
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['reports'], json.dumps(response_data))
+        
+        return jsonify(response_data), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve average: {str(e)}"}), 500
-    
+
 @app.route('/reports/top_ten_students', methods=['GET'])
+@cache.cached(timeout=CACHE_TTL['reports'], key_prefix='report_top_ten_students')
 def top_ten_students_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Uses indexes: Submission.StudentID, Grade.SubmissionID
     cursor.execute("""
                     SELECT St.FirstName, St.LastName, St.Major, AVG(CAST(G.Grade AS Decimal (10,2))) AS AverageGrade
                     FROM Student St
@@ -1359,10 +1458,13 @@ def top_ten_students_report():
 @app.route('/assignments/submissions/<string:assignment_id>', methods=['GET'])
 @token_required
 def get_submissions(current_user, assignment_id):
-    """
-    Returns all submissions for an assignment with grade info.
-    Only the lecturer assigned to the course may call this.
-    """
+    cache_key = f'submissions_{assignment_id}'
+    
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return jsonify(json.loads(cached_data)), 200
+
     try:
         user_role = current_user[5]
         if user_role.lower() != 'lecturer':
@@ -1371,8 +1473,6 @@ def get_submissions(current_user, assignment_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Verify assignment belongs to one of this lecturer's courses
-        # Uses indexes: Assignment.AssignmentID, Course.LecturerID
         cursor.execute("""
             SELECT A.AssignmentID, A.CourseID
             FROM Assignment A
@@ -1386,7 +1486,6 @@ def get_submissions(current_user, assignment_id):
             conn.close()
             return jsonify({"error": "Assignment not found or you are not the lecturer for this course."}), 404
 
-        # Uses indexes: Submission.AssignmentID, Submission.StudentID, User.UserID
         cursor.execute("""
             SELECT
                 S.SubmissionID,
@@ -1409,6 +1508,9 @@ def get_submissions(current_user, assignment_id):
         cursor.close()
         conn.close()
 
+        if redis_client:
+            redis_client.setex(cache_key, CACHE_TTL['assignments'], json.dumps(submissions))
+        
         return jsonify(submissions), 200
 
     except mysql.connector.Error as e:
@@ -1416,6 +1518,61 @@ def get_submissions(current_user, assignment_id):
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve submissions: {str(e)}"}), 500
 
+# ─────────────────────────────────────────────
+#  HEALTH CHECK ENDPOINT
+# ─────────────────────────────────────────────
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Render and monitoring."""
+    status = {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "services": {}
+    }
+    
+    # Check database connection
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        conn.close()
+        status["services"]["database"] = "connected"
+    except Exception as e:
+        status["services"]["database"] = f"error: {str(e)}"
+        status["status"] = "unhealthy"
+    
+    # Check Redis connection
+    if redis_client:
+        try:
+            redis_client.ping()
+            status["services"]["redis"] = "connected"
+        except Exception as e:
+            status["services"]["redis"] = f"error: {str(e)}"
+            status["status"] = "degraded"
+    else:
+        status["services"]["redis"] = "not configured"
+    
+    return jsonify(status), 200 if status["status"] == "healthy" else 503
+
+# ─────────────────────────────────────────────
+#  CLEAR CACHE ENDPOINT (Admin only)
+# ─────────────────────────────────────────────
+@app.route('/admin/cache/clear', methods=['POST'])
+@token_required
+def clear_cache(current_user):
+    """Clear all cache - Admin only."""
+    user_role = current_user[5]
+    if user_role.lower() != 'admin':
+        return jsonify({"error": "Access denied. Only admins can clear cache."}), 403
+    
+    try:
+        if redis_client:
+            redis_client.flushall()
+        cache.clear()
+        return jsonify({"message": "Cache cleared successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to clear cache: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

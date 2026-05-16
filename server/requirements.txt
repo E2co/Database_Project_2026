@@ -14,3 +14,9 @@ Flask-CORS>=4.0.0,<5.0.0
 
 # Production Server (Required for Docker)
 gunicorn>=21.0.0,<22.0.0
+
+valkey
+
+valkey[hiredis]
+
+flask-caching
