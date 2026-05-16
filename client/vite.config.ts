@@ -1,11 +1,10 @@
-// vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/',  // CRITICAL: Use absolute path
+  base: '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -13,10 +12,6 @@ export default defineConfig({
   },
   css: {
     postcss: './postcss.config.js',
-    // Ensure CSS is properly bundled
-    modules: {
-      localsConvention: 'camelCase',
-    },
   },
   server: {
     port: 5173,
@@ -28,8 +23,12 @@ export default defineConfig({
     }
   },
   build: {
-  outDir: 'dist',
-  sourcemap: false,
-  minify: 'esbuild',
-},
+    outDir: 'dist',
+    sourcemap: false,
+    // Remove explicit terser - use Vite's default which handles it better
+    minify: 'esbuild',
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom'],
+  },
 })
