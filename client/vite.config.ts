@@ -33,12 +33,5 @@ export default defineConfig({
     minify: 'terser',
     cssMinify: true,  // ADD THIS
     reportCompressedSize: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'vendor': ['react', 'react-dom', 'react-router-dom'],
-        },
-      },
-    },
   },
 })
