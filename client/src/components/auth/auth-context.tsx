@@ -1,101 +1,87 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react"
-import { authApi } from "@/api"
+import React, { createContext, useContext, useEffect, useState } from "react"
+import { authApi, setToken as setApiToken } from "@/api"
 
-export interface User {
-  ID: string
-  UserID: string
-  FirstName: string
-  LastName: string
-  Email: string
-  Role: "student" | "lecturer" | "admin"
+export interface AuthUser {
+  id: string
+  userID: string
+  role: string
+  firstName: string
+  lastName: string
+  email: string
 }
 
-export interface AuthContextValue {
-  user: User | null
-  isLoading: boolean
+interface AuthContextType {
+  user: AuthUser | null
+  loading: boolean
+  hydrateUser: (token: string) => Promise<void>
+  logout: () => void
   isStudent: boolean
   isLecturer: boolean
   isAdmin: boolean
-  hydrateUser: (token: string) => Promise<void>
-  logout: () => Promise<void>
+  isLoading: boolean
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Check if user is logged in on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const userData = await authApi.me()
-        setUser({
-          ID: userData.ID,
-          UserID: userData.UserID,
-          FirstName: userData.FirstName,
-          LastName: userData.LastName,
-          Email: userData.Email,
-          Role: userData.Role as "student" | "lecturer" | "admin",  // Type cast
-        })
-      } catch (err) {
-        console.log("No active session")
-        setUser(null)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    checkAuth()
-  }, [])
-
+  // Hydrate user from token (called on mount and after login)
   const hydrateUser = async (token: string) => {
     try {
-      localStorage.setItem("token", token)
-      const userData = await authApi.me()
-      setUser({
-        ID: userData.ID,
-        UserID: userData.UserID,
-        FirstName: userData.FirstName,
-        LastName: userData.LastName,
-        Email: userData.Email,
-        Role: userData.Role as "student" | "lecturer" | "admin",  // Type cast
-      })
-    } catch (err) {
-      console.error("Failed to hydrate user:", err)
-      localStorage.removeItem("token")
+      setApiToken(token)
+      const response = await authApi.me()
+      const mappedUser: AuthUser = {
+        id: response.ID,
+        userID: response.UserID,
+        role: response.Role,
+        firstName: response.FirstName,
+        lastName: response.LastName,
+        email: response.Email,
+      }
+      setUser(mappedUser)
+      // Save token to sessionStorage
+      sessionStorage.setItem("ourvle_token", token)
+    } catch (error) {
+      console.error("Failed to hydrate user:", error)
       setUser(null)
-      throw err
+      sessionStorage.removeItem("ourvle_token")
+      setApiToken("")
     }
   }
 
-  const logout = async () => {
-    try {
-      await authApi.logout()
-      localStorage.removeItem("token")
-      setUser(null)
-    } catch (err) {
-      console.error("Logout error:", err)
-      localStorage.removeItem("token")
-      setUser(null)
+  // On mount: check if token exists in sessionStorage
+  useEffect(() => {
+    const token = sessionStorage.getItem("ourvle_token")
+    
+    if (token) {
+      // Token exists, try to hydrate
+      hydrateUser(token).finally(() => setLoading(false))
+    } else {
+      // No token, skip hydration
+      setLoading(false)
     }
-  }
+  }, [])
 
-  const isStudent = user?.Role === "student"
-  const isLecturer = user?.Role === "lecturer"
-  const isAdmin = user?.Role === "admin"
+  const logout = () => {
+    setUser(null)
+    sessionStorage.removeItem("ourvle_token")
+    setApiToken("")
+    authApi.logout().catch(() => {}) // Best effort
+  }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isLoading,
-        isStudent,
-        isLecturer,
-        isAdmin,
+        loading,
         hydrateUser,
         logout,
+        isStudent: user?.role === "student",
+        isLecturer: user?.role === "lecturer",
+        isAdmin: user?.role === "admin",
+        isLoading: loading,
       }}
     >
       {children}
@@ -103,10 +89,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export default function useAuth(): AuthContextValue {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider")
   }
   return context
 }
+
+export default useAuth
