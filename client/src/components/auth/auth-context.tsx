@@ -4,7 +4,7 @@ import { authApi, setToken as setApiToken } from "@/api"
 export interface AuthUser {
   id: string
   userID: string
-  role: string
+  role: "student" | "lecturer" | "admin"
   firstName: string
   lastName: string
   email: string
@@ -14,7 +14,7 @@ interface AuthContextType {
   user: AuthUser | null
   loading: boolean
   hydrateUser: (token: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   isStudent: boolean
   isLecturer: boolean
   isAdmin: boolean
@@ -32,10 +32,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setApiToken(token)
       const response = await authApi.me()
+      
+      // Ensure role is one of the valid types
+      const validRole = (["student", "lecturer", "admin"].includes(response.Role?.toLowerCase())
+        ? response.Role?.toLowerCase()
+        : "student") as "student" | "lecturer" | "admin"
+
       const mappedUser: AuthUser = {
         id: response.ID,
         userID: response.UserID,
-        role: response.Role,
+        role: validRole,
         firstName: response.FirstName,
         lastName: response.LastName,
         email: response.Email,
@@ -48,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
       sessionStorage.removeItem("ourvle_token")
       setApiToken("")
+      throw error
     }
   }
 
@@ -57,18 +64,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (token) {
       // Token exists, try to hydrate
-      hydrateUser(token).finally(() => setLoading(false))
+      hydrateUser(token)
+        .catch(() => {
+          console.log("Failed to restore session")
+        })
+        .finally(() => setLoading(false))
     } else {
       // No token, skip hydration
       setLoading(false)
     }
   }, [])
 
-  const logout = () => {
-    setUser(null)
-    sessionStorage.removeItem("ourvle_token")
-    setApiToken("")
-    authApi.logout().catch(() => {}) // Best effort
+  const logout = async () => {
+    try {
+      await authApi.logout()
+    } catch (err) {
+      console.error("Logout API error:", err)
+    } finally {
+      setUser(null)
+      sessionStorage.removeItem("ourvle_token")
+      setApiToken("")
+    }
   }
 
   return (
@@ -98,3 +114,4 @@ export function useAuth(): AuthContextType {
 }
 
 export default useAuth
+  

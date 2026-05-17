@@ -85,18 +85,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const role = user?.Role ?? "student"
-  const initials = `${user?.FirstName?.[0] ?? ""}${user?.LastName?.[0] ?? ""}`.toUpperCase() || "U"
-  const displayName = user?.FirstName
-    ? `${user.FirstName} ${user.LastName}`.trim()
-    : user?.Email ?? "User"
+  const role = user?.role ?? "student"
+  const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "U"
+  const displayName = user?.firstName
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : user?.email ?? "User"
 
   const visibleNav = NAV_ITEMS.filter((item) => item.roles.includes(role))
 
   const handleLogout = async () => {
     setDropdownOpen(false)
     await logout()
-    navigate("/")
+    navigate("/login")
   }
 
   // Close dropdown when clicking outside
@@ -132,16 +132,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {user && (
           <div className="sidebar-role">
-            <span className="sidebar-role-badge">{user.Role}</span>
+            <span className="sidebar-role-badge">{user.role}</span>
           </div>
         )}
 
         <nav className="sidebar-nav">
           <ul className="sidebar-nav-list">
             {visibleNav.map((item) => {
-              const label = item.id === "courses"
-                ? (isAdmin ? "Courses" : "My Courses")
-                : item.name!
+              // Determine label based on role and item
+              let label = item.name
+              if (item.id === "courses") {
+                label = isAdmin ? "Courses" : "My Courses"
+              }
+              
               const isActive = pathname === item.href
 
               return (
@@ -170,7 +173,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="sidebar-avatar">{initials}</div>
             <div className="sidebar-user-info">
               <div className="sidebar-user-name">{displayName}</div>
-              <div className="sidebar-user-role">{user?.Role ?? ""}</div>
+              <div className="sidebar-user-role">{user?.role ?? ""}</div>
             </div>
             <svg className={`sidebar-user-chevron ${dropdownOpen ? 'open' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" />
@@ -181,7 +184,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="dropdown-content dropdown-user">
               <div className="dropdown-header">
                 <div className="dropdown-header-name">{displayName}</div>
-                <div className="dropdown-header-email">{user?.Email}</div>
+                <div className="dropdown-header-email">{user?.email}</div>
               </div>
               <div className="dropdown-separator" />
               <button className="dropdown-item">
@@ -249,3 +252,4 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 }
 
 export default DashboardLayout
+  

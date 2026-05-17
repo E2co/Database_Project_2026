@@ -24,6 +24,7 @@ export function DashboardContent() {
 
   const firstName = user?.firstName || user?.email?.split("@")[0] || "there"
 
+  // Fetch courses based on user role
   useEffect(() => {
     if (!user || isAdmin) {
       setLoadingCourses(false)
@@ -40,6 +41,7 @@ export function DashboardContent() {
       .finally(() => setLoadingCourses(false))
   }, [user, isStudent, isLecturer, isAdmin])
 
+  // Fetch assignments (students and lecturers only)
   useEffect(() => {
     if (!courses.length || !isStudent) {
       setLoadingAssign(false)
@@ -51,6 +53,7 @@ export function DashboardContent() {
       .finally(() => setLoadingAssign(false))
   }, [courses, isStudent])
 
+  // Fetch today's events (students and lecturers only)
   useEffect(() => {
     if (!user || !isStudent) {
       setLoadingEvents(false)
@@ -65,6 +68,7 @@ export function DashboardContent() {
       .finally(() => setLoadingEvents(false))
   }, [user, isStudent])
 
+  // Fetch overall grade (students only)
   useEffect(() => {
     if (!user || !isStudent) return
     gradesApi.getStudentAverage(user.userID).then((r) => setAverage(r.OverallAverage)).catch(() => {})
@@ -76,7 +80,9 @@ export function DashboardContent() {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   })
 
-  // Admin Dashboard
+  // ============================================================================
+  // ADMIN DASHBOARD
+  // ============================================================================
   if (isAdmin) {
     return (
       <div>
@@ -85,7 +91,7 @@ export function DashboardContent() {
           <p>System administration overview.</p>
         </div>
 
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
           <div className="card card-clickable">
             <div className="card-content">
               <h3 className="card-title">Manage Courses</h3>
@@ -124,7 +130,131 @@ export function DashboardContent() {
     )
   }
 
-  // Student / Lecturer Dashboard
+  // ============================================================================
+  // LECTURER DASHBOARD
+  // ============================================================================
+  if (isLecturer) {
+    return (
+      <div>
+        <div className="page-header">
+          <h1>Welcome back, {firstName}</h1>
+          <p>Here&apos;s what&apos;s happening with your courses today.</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Courses Teaching</span>
+              <div className="stat-card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
+                </svg>
+              </div>
+            </div>
+            {loadingCourses ? (
+              <Skeleton style={{ width: '60px', height: '36px' }} />
+            ) : (
+              <div className="stat-card-value">{courses.length}</div>
+            )}
+            <div className="stat-card-desc">Active this semester</div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Total Students</span>
+              <div className="stat-card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+            </div>
+            <div className="stat-card-value">-</div>
+            <div className="stat-card-desc">Across all courses</div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Pending Submissions</span>
+              <div className="stat-card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                  <path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z" />
+                </svg>
+              </div>
+            </div>
+            <div className="stat-card-value">-</div>
+            <div className="stat-card-desc">To be graded</div>
+          </div>
+        </div>
+
+        {/* Content Grid */}
+        <div className="content-grid">
+          <div className="content-main">
+            <div className="section-header">
+              <h2 className="section-title">My Courses</h2>
+              <Link to="/dashboard/courses" className="section-link">View all</Link>
+            </div>
+
+            {loadingCourses ? (
+              <div className="courses-grid">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="skeleton" style={{ height: '160px', borderRadius: 'var(--radius-lg)' }} />
+                ))}
+              </div>
+            ) : courseError ? (
+              <p className="text-muted">{courseError}</p>
+            ) : courses.length === 0 ? (
+              <div className="empty-state">
+                <p className="empty-state-desc">No courses found.</p>
+              </div>
+            ) : (
+              <div className="courses-grid">
+                {courses.slice(0, 4).map((course) => (
+                  <Link key={course.CourseID} to={`/dashboard/courses/${course.CourseID}`} className="course-card">
+                    <div className="card card-clickable">
+                      <div className="card-content">
+                        <div className="course-card-badges">
+                          <span className="badge badge-primary">{course.CourseCode}</span>
+                        </div>
+                        <h3 className="course-card-title">{course.CourseName}</h3>
+                        <p className="course-card-id">ID: {course.CourseID}</p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="content-sidebar">
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">Quick Links</h3>
+              </div>
+              <div className="card-content">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                  <Link to="/dashboard/assignments" className="section-link">
+                    View assignments &amp; submissions
+                  </Link>
+                  <Link to="/dashboard/reports" className="section-link">
+                    Class reports
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================================================
+  // STUDENT DASHBOARD
+  // ============================================================================
   return (
     <div>
       <div className="page-header">
@@ -136,7 +266,7 @@ export function DashboardContent() {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-card-header">
-            <span className="stat-card-title">{isStudent ? "Enrolled Courses" : "Courses Teaching"}</span>
+            <span className="stat-card-title">Enrolled Courses</span>
             <div className="stat-card-icon">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
@@ -144,52 +274,48 @@ export function DashboardContent() {
             </div>
           </div>
           {loadingCourses ? (
-            <Skeleton className="skeleton" style={{ width: '60px', height: '36px' }} />
+            <Skeleton style={{ width: '60px', height: '36px' }} />
           ) : (
             <div className="stat-card-value">{courses.length}</div>
           )}
           <div className="stat-card-desc">Active this semester</div>
         </div>
 
-        {isStudent && (
-          <div className="stat-card">
-            <div className="stat-card-header">
-              <span className="stat-card-title">Pending Assignments</span>
-              <div className="stat-card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                  <path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z" />
-                </svg>
-              </div>
+        <div className="stat-card">
+          <div className="stat-card-header">
+            <span className="stat-card-title">Pending Assignments</span>
+            <div className="stat-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                <path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z" />
+              </svg>
             </div>
-            {loadingAssign ? (
-              <Skeleton style={{ width: '60px', height: '36px' }} />
-            ) : (
-              <div className="stat-card-value">{pendingAssignments.length}</div>
-            )}
-            <div className="stat-card-desc">Due upcoming</div>
           </div>
-        )}
+          {loadingAssign ? (
+            <Skeleton style={{ width: '60px', height: '36px' }} />
+          ) : (
+            <div className="stat-card-value">{pendingAssignments.length}</div>
+          )}
+          <div className="stat-card-desc">Due upcoming</div>
+        </div>
 
-        {isStudent && (
-          <div className="stat-card">
-            <div className="stat-card-header">
-              <span className="stat-card-title">Overall Average</span>
-              <div className="stat-card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-                  <path d="m19 9-5 5-4-4-3 3" />
-                </svg>
-              </div>
+        <div className="stat-card">
+          <div className="stat-card-header">
+            <span className="stat-card-title">Overall Average</span>
+            <div className="stat-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                <path d="m19 9-5 5-4-4-3 3" />
+              </svg>
             </div>
-            {average === null ? (
-              <Skeleton style={{ width: '80px', height: '36px' }} />
-            ) : (
-              <div className="stat-card-value">{average.toFixed(1)}%</div>
-            )}
-            <div className="stat-card-desc">Across all graded work</div>
           </div>
-        )}
+          {average === null ? (
+            <Skeleton style={{ width: '80px', height: '36px' }} />
+          ) : (
+            <div className="stat-card-value">{average.toFixed(1)}%</div>
+          )}
+          <div className="stat-card-desc">Across all graded work</div>
+        </div>
 
         <div className="stat-card">
           <div className="stat-card-header">
@@ -242,7 +368,7 @@ export function DashboardContent() {
                       </div>
                       <h3 className="course-card-title">{course.CourseName}</h3>
                       <p className="course-card-lecturer">
-                        {course.LecturerID ? `Lecturer: ${course.LecturerID}` : 'No lecturer assigned'}
+                        {course.LecturerName || 'No lecturer assigned'}
                       </p>
                       <p className="course-card-id">ID: {course.CourseID}</p>
                     </div>
@@ -256,91 +382,65 @@ export function DashboardContent() {
         {/* Sidebar */}
         <div className="content-sidebar">
           {/* Today's Schedule */}
-          {isStudent && (
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Today&apos;s Schedule</h3>
-                <p className="card-description">{todayLabel}</p>
-              </div>
-              <div className="card-content">
-                {loadingEvents ? (
-                  <Skeleton style={{ height: '80px' }} />
-                ) : events.length === 0 ? (
-                  <p className="text-muted" style={{ fontSize: '0.875rem' }}>No events today.</p>
-                ) : (
-                  <div className="list">
-                    {events.map((ev, i) => (
-                      <div key={i} className="list-item">
-                        <div className={`list-item-indicator ${ev.EventType}`} />
-                        <div className="list-item-content">
-                          <div className="list-item-title">{ev.EventTitle}</div>
-                          <div className="list-item-subtitle">{ev.EventType}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <Link to="/dashboard/calendar" className="section-link" style={{ display: 'block', textAlign: 'center', marginTop: 'var(--space-4)' }}>
-                  View full calendar
-                </Link>
-              </div>
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">Today&apos;s Schedule</h3>
+              <p className="card-description">{todayLabel}</p>
             </div>
-          )}
+            <div className="card-content">
+              {loadingEvents ? (
+                <Skeleton style={{ height: '80px' }} />
+              ) : events.length === 0 ? (
+                <p className="text-muted" style={{ fontSize: '0.875rem' }}>No events today.</p>
+              ) : (
+                <div className="list">
+                  {events.map((ev, i) => (
+                    <div key={i} className="list-item">
+                      <div className={`list-item-indicator ${ev.EventType}`} />
+                      <div className="list-item-content">
+                        <div className="list-item-title">{ev.EventTitle}</div>
+                        <div className="list-item-subtitle">{ev.EventType}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Link to="/dashboard/calendar" className="section-link" style={{ display: 'block', textAlign: 'center', marginTop: 'var(--space-4)' }}>
+                View full calendar
+              </Link>
+            </div>
+          </div>
 
           {/* Upcoming Assignments */}
-          {isStudent && (
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Upcoming Assignments</h3>
-              </div>
-              <div className="card-content">
-                {loadingAssign ? (
-                  <Skeleton style={{ height: '96px' }} />
-                ) : pendingAssignments.length === 0 ? (
-                  <p className="text-muted" style={{ fontSize: '0.875rem' }}>No pending assignments.</p>
-                ) : (
-                  <div className="list">
-                    {pendingAssignments.slice(0, 4).map((a) => (
-                      <div key={a.AssignmentID} className="list-item" style={{ justifyContent: 'space-between' }}>
-                        <div className="list-item-content">
-                          <div className="list-item-title">{a.Title}</div>
-                          <div className="list-item-subtitle">{a.Description}</div>
-                        </div>
-                        <span className="badge badge-outline">
-                          {new Date(a.DueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        </span>
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">Upcoming Assignments</h3>
+            </div>
+            <div className="card-content">
+              {loadingAssign ? (
+                <Skeleton style={{ height: '96px' }} />
+              ) : pendingAssignments.length === 0 ? (
+                <p className="text-muted" style={{ fontSize: '0.875rem' }}>No pending assignments.</p>
+              ) : (
+                <div className="list">
+                  {pendingAssignments.slice(0, 4).map((a) => (
+                    <div key={a.AssignmentID} className="list-item" style={{ justifyContent: 'space-between' }}>
+                      <div className="list-item-content">
+                        <div className="list-item-title">{a.Title}</div>
+                        <div className="list-item-subtitle">{a.Description}</div>
                       </div>
-                    ))}
-                  </div>
-                )}
-                <Link to="/dashboard/assignments" className="section-link" style={{ display: 'block', textAlign: 'center', marginTop: 'var(--space-4)' }}>
-                  View all assignments
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {/* Lecturer Quick Links */}
-          {isLecturer && (
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Quick Links</h3>
-              </div>
-              <div className="card-content">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                  <Link to="/dashboard/assignments" className="section-link">
-                    View assignments &amp; submissions
-                  </Link>
-                  <Link to="/dashboard/forums" className="section-link">
-                    Course forums
-                  </Link>
-                  <Link to="/dashboard/reports" className="section-link">
-                    Reports
-                  </Link>
+                      <span className="badge badge-outline">
+                        {new Date(a.DueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
+              <Link to="/dashboard/assignments" className="section-link" style={{ display: 'block', textAlign: 'center', marginTop: 'var(--space-4)' }}>
+                View all assignments
+              </Link>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
