@@ -158,7 +158,9 @@ def get_db_connection():
         host=DB_HOST,
         user=DB_USER,
         password=DB_PASSWORD,
-        database="OURVLECloneDatabase",
+        database="defaultdb",
+        port=int(os.getenv("DB_PORT", 3306)),
+        ssl_disabled=False,
         connect_timeout=10
     )
 
