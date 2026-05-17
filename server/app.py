@@ -104,18 +104,16 @@ def invalidate_assignment_cache(course_id, assignment_id=None):
         cache.delete(f'submissions_{assignment_id}')
 
 def get_cached_or_query(cache_key, query_func, ttl=CACHE_TTL['courses']):
-    """Helper function to get data from cache or execute query."""
     if redis_client:
         cached_data = redis_client.get(cache_key)
         if cached_data:
             return jsonify(json.loads(cached_data)), 200
-    
     result = query_func()
-    
-    if result and redis_client:
-        redis_client.setex(cache_key, ttl, json.dumps(result))
-    
-    return jsonify(result) if result else jsonify({"error": "No data found."}), 404 if not result else 200
+    if result:
+        if redis_client:
+            redis_client.setex(cache_key, ttl, json.dumps(result))
+        return jsonify(result), 200
+    return jsonify({"error": "No data found."}), 404    
 
 # Belt-and-suspenders: manually handle every OPTIONS preflight
 @app.before_request
@@ -161,9 +159,7 @@ def get_db_connection():
         user=DB_USER,
         password=DB_PASSWORD,
         database="OURVLECloneDatabase",
-        pool_name="mypool",
-        pool_size=10,
-        pool_reset_session=True
+        connect_timeout=10
     )
 
 def token_required(f):
