@@ -2,36 +2,28 @@
 
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-// import { Progress } from "@/components/ui/progress"
 import useAuth from "@/components/auth/auth-context"
 import { coursesApi, assignmentsApi, calendarApi, gradesApi } from "@/api"
 import type { Course, Assignment, CalendarEvent } from "@/api"
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />
-}
-
-function ErrorNote({ msg }: { msg: string }) {
-  return <p className="text-sm text-muted-foreground italic py-2">{msg}</p>
+  return <div className={`skeleton ${className}`} style={{ height: className.includes('h-') ? undefined : '32px' }} />
 }
 
 export function DashboardContent() {
   const { user, isStudent, isLecturer, isAdmin } = useAuth()
 
-  const [courses,        setCourses]        = useState<Course[]>([])
-  const [assignments,    setAssignments]    = useState<Assignment[]>([])
-  const [events,         setEvents]         = useState<CalendarEvent[]>([])
-  const [average,        setAverage]        = useState<number | null>(null)
+  const [courses, setCourses] = useState<Course[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [average, setAverage] = useState<number | null>(null)
   const [loadingCourses, setLoadingCourses] = useState(true)
-  const [loadingAssign,  setLoadingAssign]  = useState(true)
-  const [loadingEvents,  setLoadingEvents]  = useState(true)
-  const [courseError,    setCourseError]    = useState<string | null>(null)
+  const [loadingAssign, setLoadingAssign] = useState(true)
+  const [loadingEvents, setLoadingEvents] = useState(true)
+  const [courseError, setCourseError] = useState<string | null>(null)
 
   const firstName = user?.firstName || user?.email?.split("@")[0] || "there"
 
-  // 1. Load courses (skipped for admin on dashboard — they see stats only)
   useEffect(() => {
     if (!user || isAdmin) {
       setLoadingCourses(false)
@@ -48,7 +40,6 @@ export function DashboardContent() {
       .finally(() => setLoadingCourses(false))
   }, [user, isStudent, isLecturer, isAdmin])
 
-  // 2. Assignments per enrolled course (student only)
   useEffect(() => {
     if (!courses.length || !isStudent) {
       setLoadingAssign(false)
@@ -60,7 +51,6 @@ export function DashboardContent() {
       .finally(() => setLoadingAssign(false))
   }, [courses, isStudent])
 
-  // 3. Today's calendar events (student only)
   useEffect(() => {
     if (!user || !isStudent) {
       setLoadingEvents(false)
@@ -75,7 +65,6 @@ export function DashboardContent() {
       .finally(() => setLoadingEvents(false))
   }, [user, isStudent])
 
-  // 4. Grade average (student only)
   useEffect(() => {
     if (!user || !isStudent) return
     gradesApi.getStudentAverage(user.userID).then((r) => setAverage(r.OverallAverage)).catch(() => {})
@@ -87,243 +76,270 @@ export function DashboardContent() {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   })
 
-  // ─── Admin dashboard ──────────────────────────────────────────────────────────
+  // Admin Dashboard
   if (isAdmin) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Welcome, {firstName}</h1>
-          <p className="text-muted-foreground mt-1">System administration overview.</p>
+      <div>
+        <div className="page-header">
+          <h1>Welcome, {firstName}</h1>
+          <p>System administration overview.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Manage Courses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground mb-3">Create courses and assign lecturers.</p>
-              <Link to="/dashboard/courses">
-                <span className="text-sm text-primary hover:underline">Go to Courses →</span>
+
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="card card-clickable">
+            <div className="card-content">
+              <h3 className="card-title">Manage Courses</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
+                Create courses and assign lecturers.
+              </p>
+              <Link to="/dashboard/courses" className="section-link">
+                Go to Courses &rarr;
               </Link>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Reports</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground mb-3">View system-wide analytics.</p>
-              <Link to="/dashboard/reports">
-                <span className="text-sm text-primary hover:underline">Go to Reports →</span>
+            </div>
+          </div>
+
+          <div className="card card-clickable">
+            <div className="card-content">
+              <h3 className="card-title">Reports</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
+                View system-wide analytics.
+              </p>
+              <Link to="/dashboard/reports" className="section-link">
+                Go to Reports &rarr;
               </Link>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link to="/dashboard/courses" className="block text-sm text-primary hover:underline">
-                + Create a new course
-              </Link>
-              <Link to="/dashboard/courses" className="block text-sm text-primary hover:underline">
-                + Assign a lecturer
-              </Link>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+
+          <div className="card card-clickable">
+            <div className="card-content">
+              <h3 className="card-title">Quick Actions</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <Link to="/dashboard/courses" className="section-link">+ Create a new course</Link>
+                <Link to="/dashboard/courses" className="section-link">+ Assign a lecturer</Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
-  // ─── Student / Lecturer dashboard ─────────────────────────────────────────────
+  // Student / Lecturer Dashboard
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Welcome back, {firstName}</h1>
-        <p className="text-muted-foreground mt-1">Here&apos;s what&apos;s happening with your courses today.</p>
+    <div>
+      <div className="page-header">
+        <h1>Welcome back, {firstName}</h1>
+        <p>Here&apos;s what&apos;s happening with your courses today.</p>
       </div>
 
-      {/* Stats row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {isStudent ? "Enrolled Courses" : "Courses Teaching"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingCourses ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-2xl font-bold">{courses.length}</div>
-            )}
-            <p className="text-xs text-muted-foreground">Active this semester</p>
-          </CardContent>
-        </Card>
+      {/* Stats Grid */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-card-header">
+            <span className="stat-card-title">{isStudent ? "Enrolled Courses" : "Courses Teaching"}</span>
+            <div className="stat-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
+              </svg>
+            </div>
+          </div>
+          {loadingCourses ? (
+            <Skeleton className="skeleton" style={{ width: '60px', height: '36px' }} />
+          ) : (
+            <div className="stat-card-value">{courses.length}</div>
+          )}
+          <div className="stat-card-desc">Active this semester</div>
+        </div>
 
         {isStudent && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Pending Assignments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingAssign ? <Skeleton className="h-8 w-16" /> : (
-                <div className="text-2xl font-bold">{pendingAssignments.length}</div>
-              )}
-              <p className="text-xs text-muted-foreground">Due upcoming</p>
-            </CardContent>
-          </Card>
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Pending Assignments</span>
+              <div className="stat-card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                  <path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z" />
+                </svg>
+              </div>
+            </div>
+            {loadingAssign ? (
+              <Skeleton style={{ width: '60px', height: '36px' }} />
+            ) : (
+              <div className="stat-card-value">{pendingAssignments.length}</div>
+            )}
+            <div className="stat-card-desc">Due upcoming</div>
+          </div>
         )}
 
         {isStudent && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Overall Average</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {average === null ? <Skeleton className="h-8 w-24" /> : (
-                <div className="text-2xl font-bold">{average.toFixed(1)}%</div>
-              )}
-              <p className="text-xs text-muted-foreground">Across all graded work</p>
-            </CardContent>
-          </Card>
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Overall Average</span>
+              <div className="stat-card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                  <path d="m19 9-5 5-4-4-3 3" />
+                </svg>
+              </div>
+            </div>
+            {average === null ? (
+              <Skeleton style={{ width: '80px', height: '36px' }} />
+            ) : (
+              <div className="stat-card-value">{average.toFixed(1)}%</div>
+            )}
+            <div className="stat-card-desc">Across all graded work</div>
+          </div>
         )}
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Today&apos;s Events</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingEvents ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-2xl font-bold">{events.length}</div>
-            )}
-            <p className="text-xs text-muted-foreground">{todayLabel.split(",")[0]}</p>
-          </CardContent>
-        </Card>
+        <div className="stat-card">
+          <div className="stat-card-header">
+            <span className="stat-card-title">Today&apos;s Events</span>
+            <div className="stat-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 2v4" /><path d="M16 2v4" />
+                <rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" />
+              </svg>
+            </div>
+          </div>
+          {loadingEvents ? (
+            <Skeleton style={{ width: '60px', height: '36px' }} />
+          ) : (
+            <div className="stat-card-value">{events.length}</div>
+          )}
+          <div className="stat-card-desc">{todayLabel.split(",")[0]}</div>
+        </div>
       </div>
 
-      {/* Main grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* My Courses (student/lecturer only) */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">My Courses</h2>
-            <Link to="/dashboard/courses" className="text-sm text-primary hover:underline">View all</Link>
+      {/* Content Grid */}
+      <div className="content-grid">
+        {/* Courses Section */}
+        <div className="content-main">
+          <div className="section-header">
+            <h2 className="section-title">My Courses</h2>
+            <Link to="/dashboard/courses" className="section-link">View all</Link>
           </div>
 
           {loadingCourses ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+            <div className="courses-grid">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="skeleton" style={{ height: '160px', borderRadius: 'var(--radius-lg)' }} />
+              ))}
             </div>
           ) : courseError ? (
-            <ErrorNote msg={courseError} />
+            <p className="text-muted">{courseError}</p>
           ) : courses.length === 0 ? (
-            <ErrorNote msg="No courses found." />
+            <div className="empty-state">
+              <p className="empty-state-desc">No courses found.</p>
+            </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="courses-grid">
               {courses.slice(0, 4).map((course) => (
-                <Link key={course.CourseID} to={`/dashboard/courses/${course.CourseID}`}>
-                  <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                    <CardHeader className="pb-2">
-                      <Badge variant="secondary">{course.CourseCode}</Badge>
-                      <CardTitle className="text-lg mt-2">{course.CourseName}</CardTitle>
-                      {course.LecturerID && (
-                        <CardDescription>Lecturer: {course.LecturerID}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-muted-foreground">ID: {course.CourseID}</p>
-                    </CardContent>
-                  </Card>
+                <Link key={course.CourseID} to={`/dashboard/courses/${course.CourseID}`} className="course-card">
+                  <div className="card card-clickable">
+                    <div className="card-content">
+                      <div className="course-card-badges">
+                        <span className="badge badge-primary">{course.CourseCode}</span>
+                      </div>
+                      <h3 className="course-card-title">{course.CourseName}</h3>
+                      <p className="course-card-lecturer">
+                        {course.LecturerID ? `Lecturer: ${course.LecturerID}` : 'No lecturer assigned'}
+                      </p>
+                      <p className="course-card-id">ID: {course.CourseID}</p>
+                    </div>
+                  </div>
                 </Link>
               ))}
             </div>
           )}
         </div>
 
-        {/* Sidebar panel */}
-        <div className="space-y-6">
-          {/* Today's schedule (students) */}
+        {/* Sidebar */}
+        <div className="content-sidebar">
+          {/* Today's Schedule */}
           {isStudent && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Today&apos;s Schedule</CardTitle>
-                <CardDescription>{todayLabel}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">Today&apos;s Schedule</h3>
+                <p className="card-description">{todayLabel}</p>
+              </div>
+              <div className="card-content">
                 {loadingEvents ? (
-                  <Skeleton className="h-20 w-full" />
+                  <Skeleton style={{ height: '80px' }} />
                 ) : events.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No events today.</p>
+                  <p className="text-muted" style={{ fontSize: '0.875rem' }}>No events today.</p>
                 ) : (
-                  events.map((ev, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className={`h-2 w-2 rounded-full mt-2 ${
-                        ev.EventType === "lecture" ? "bg-primary" :
-                        ev.EventType === "deadline" ? "bg-destructive" : "bg-accent"
-                      }`} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{ev.EventTitle}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{ev.EventType}</p>
+                  <div className="list">
+                    {events.map((ev, i) => (
+                      <div key={i} className="list-item">
+                        <div className={`list-item-indicator ${ev.EventType}`} />
+                        <div className="list-item-content">
+                          <div className="list-item-title">{ev.EventTitle}</div>
+                          <div className="list-item-subtitle">{ev.EventType}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
-                <Link to="/dashboard/calendar" className="block text-sm text-primary hover:underline text-center pt-2">
+                <Link to="/dashboard/calendar" className="section-link" style={{ display: 'block', textAlign: 'center', marginTop: 'var(--space-4)' }}>
                   View full calendar
                 </Link>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
-          {/* Upcoming assignments (students) */}
+          {/* Upcoming Assignments */}
           {isStudent && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Upcoming Assignments</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">Upcoming Assignments</h3>
+              </div>
+              <div className="card-content">
                 {loadingAssign ? (
-                  <Skeleton className="h-24 w-full" />
+                  <Skeleton style={{ height: '96px' }} />
                 ) : pendingAssignments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No pending assignments.</p>
+                  <p className="text-muted" style={{ fontSize: '0.875rem' }}>No pending assignments.</p>
                 ) : (
-                  pendingAssignments.slice(0, 4).map((a) => (
-                    <div key={a.AssignmentID} className="flex items-start justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium leading-tight">{a.Title}</p>
-                        <p className="text-xs text-muted-foreground">{a.Description}</p>
+                  <div className="list">
+                    {pendingAssignments.slice(0, 4).map((a) => (
+                      <div key={a.AssignmentID} className="list-item" style={{ justifyContent: 'space-between' }}>
+                        <div className="list-item-content">
+                          <div className="list-item-title">{a.Title}</div>
+                          <div className="list-item-subtitle">{a.Description}</div>
+                        </div>
+                        <span className="badge badge-outline">
+                          {new Date(a.DueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
                       </div>
-                      <Badge variant="outline" className="shrink-0">
-                        {new Date(a.DueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </Badge>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
-                <Link to="/dashboard/assignments" className="block text-sm text-primary hover:underline text-center pt-2">
+                <Link to="/dashboard/assignments" className="section-link" style={{ display: 'block', textAlign: 'center', marginTop: 'var(--space-4)' }}>
                   View all assignments
                 </Link>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
-          {/* Lecturer: quick link to assignments page */}
+          {/* Lecturer Quick Links */}
           {isLecturer && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Quick Links</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Link to="/dashboard/assignments" className="block text-sm text-primary hover:underline">
-                  View assignments &amp; submissions
-                </Link>
-                <Link to="/dashboard/forums" className="block text-sm text-primary hover:underline">
-                  Course forums
-                </Link>
-                <Link to="/dashboard/reports" className="block text-sm text-primary hover:underline">
-                  Reports
-                </Link>
-              </CardContent>
-            </Card>
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">Quick Links</h3>
+              </div>
+              <div className="card-content">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                  <Link to="/dashboard/assignments" className="section-link">
+                    View assignments &amp; submissions
+                  </Link>
+                  <Link to="/dashboard/forums" className="section-link">
+                    Course forums
+                  </Link>
+                  <Link to="/dashboard/reports" className="section-link">
+                    Reports
+                  </Link>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

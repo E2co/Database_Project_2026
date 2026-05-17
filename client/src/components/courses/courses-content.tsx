@@ -2,52 +2,45 @@
 
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Dialog, DialogContent, DialogDescription,
-  DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog"
 import useAuth from "@/components/auth/auth-context"
 import { coursesApi } from "@/api"
 import type { Course } from "@/api"
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />
+function Skeleton({ style }: { style?: React.CSSProperties }) {
+  return <div className="skeleton" style={style} />
 }
 
 export function CoursesContent() {
   const { user, isStudent, isLecturer, isAdmin } = useAuth()
 
-  const [myCourses,   setMyCourses]   = useState<Course[]>([])
-  const [allCourses,  setAllCourses]  = useState<Course[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState<string | null>(null)
+  const [myCourses, setMyCourses] = useState<Course[]>([])
+  const [allCourses, setAllCourses] = useState<Course[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
-  // ── Enroll dialog (student) ─────────────────────────────────────────────────
+  // Enroll dialog state
+  const [showEnrollDialog, setShowEnrollDialog] = useState(false)
   const [enrollCourseId, setEnrollCourseId] = useState("")
-  const [enrollLoading,  setEnrollLoading]  = useState(false)
-  const [enrollError,    setEnrollError]    = useState<string | null>(null)
-  const [enrollSuccess,  setEnrollSuccess]  = useState<string | null>(null)
+  const [enrollLoading, setEnrollLoading] = useState(false)
+  const [enrollError, setEnrollError] = useState<string | null>(null)
+  const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null)
 
-  // ── Create course dialog (admin) ────────────────────────────────────────────
-  const [newCourse,     setNewCourse]     = useState({ CourseName: "", CourseCode: "", LecturerID: "" })
+  // Create course dialog state
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [newCourse, setNewCourse] = useState({ CourseName: "", CourseCode: "", LecturerID: "" })
   const [createLoading, setCreateLoading] = useState(false)
-  const [createError,   setCreateError]   = useState<string | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
   const [createSuccess, setCreateSuccess] = useState<string | null>(null)
 
-  // ── Assign lecturer dialog (admin) ──────────────────────────────────────────
-  const [assignCourseId,    setAssignCourseId]    = useState("")
-  const [assignLecturerId,  setAssignLecturerId]  = useState("")
-  const [assignLoading,     setAssignLoading]     = useState(false)
-  const [assignError,       setAssignError]       = useState<string | null>(null)
-  const [assignSuccess,     setAssignSuccess]     = useState<string | null>(null)
+  // Assign lecturer dialog state
+  const [showAssignDialog, setShowAssignDialog] = useState(false)
+  const [assignCourseId, setAssignCourseId] = useState("")
+  const [assignLecturerId, setAssignLecturerId] = useState("")
+  const [assignLoading, setAssignLoading] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
+  const [assignSuccess, setAssignSuccess] = useState<string | null>(null)
 
-  // Load courses based on role
   useEffect(() => {
     if (!user) return
     setLoading(true)
@@ -56,7 +49,7 @@ export function CoursesContent() {
       ? coursesApi.getByStudent(user.userID)
       : isLecturer
       ? coursesApi.getByLecturer(user.userID)
-      : coursesApi.getAll()   // admin sees everything
+      : coursesApi.getAll()
 
     myFetch
       .then(setMyCourses)
@@ -64,7 +57,6 @@ export function CoursesContent() {
       .finally(() => setLoading(false))
   }, [user, isStudent, isLecturer, isAdmin])
 
-  // Students also fetch all courses so they can browse and enroll
   useEffect(() => {
     if (!isStudent) return
     coursesApi.getAll().then(setAllCourses).catch(() => {})
@@ -72,13 +64,11 @@ export function CoursesContent() {
 
   const enrolledIds = new Set(myCourses.map((c) => c.CourseID))
 
-  // The grid shows all courses for students (to allow browsing), own courses otherwise
   const displayCourses = (isStudent ? allCourses : myCourses).filter((c) =>
     c.CourseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.CourseCode.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleEnroll = async () => {
     if (!user || !enrollCourseId.trim()) return
     setEnrollLoading(true)
@@ -139,14 +129,12 @@ export function CoursesContent() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      {/* Header */}
+      <div className="page-header page-header-with-actions">
         <div>
-          <h1 className="text-3xl font-bold">
-            {isAdmin ? "Courses" : "My Courses"}
-          </h1>
-          <p className="text-muted-foreground mt-1">
+          <h1>{isAdmin ? "Courses" : "My Courses"}</h1>
+          <p>
             {isAdmin
               ? "Create and manage all courses"
               : isLecturer
@@ -155,193 +143,248 @@ export function CoursesContent() {
           </p>
         </div>
 
-        {/* Action buttons — role-specific */}
-        <div className="flex items-center gap-2 flex-wrap">
-
-          {/* Student: enroll */}
+        <div className="page-actions">
           {isStudent && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>+ Enroll in Course</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Enroll in a Course</DialogTitle>
-                  <DialogDescription>Enter the Course ID to enroll.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Course ID</Label>
-                    <Input
-                      placeholder="e.g., a1b2c3d4"
-                      value={enrollCourseId}
-                      onChange={(e) => setEnrollCourseId(e.target.value)}
-                    />
-                  </div>
-                  {enrollError   && <p className="text-sm text-destructive">{enrollError}</p>}
-                  {enrollSuccess && <p className="text-sm text-green-600">{enrollSuccess}</p>}
-                  <Button className="w-full" onClick={handleEnroll} disabled={enrollLoading}>
-                    {enrollLoading ? "Enrolling…" : "Enroll"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <button className="btn btn-primary" onClick={() => setShowEnrollDialog(true)}>
+              + Enroll in Course
+            </button>
           )}
 
-          {/* Admin: Create Course */}
           {isAdmin && (
-            <Dialog onOpenChange={() => { setCreateError(null); setCreateSuccess(null) }}>
-              <DialogTrigger asChild>
-                <Button>+ Create Course</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create a New Course</DialogTitle>
-                  <DialogDescription>Fill in the course details below.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Course Name</Label>
-                    <Input
-                      placeholder="e.g., Database Management Systems"
-                      value={newCourse.CourseName}
-                      onChange={(e) => setNewCourse((p) => ({ ...p, CourseName: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Course Code</Label>
-                    <Input
-                      placeholder="e.g., COMP3161"
-                      value={newCourse.CourseCode}
-                      onChange={(e) => setNewCourse((p) => ({ ...p, CourseCode: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>
-                      Lecturer ID <span className="text-muted-foreground text-xs">(optional — can assign later)</span>
-                    </Label>
-                    <Input
-                      placeholder="e.g., lec-00001"
-                      value={newCourse.LecturerID}
-                      onChange={(e) => setNewCourse((p) => ({ ...p, LecturerID: e.target.value }))}
-                    />
-                  </div>
-                  {createError   && <p className="text-sm text-destructive">{createError}</p>}
-                  {createSuccess && <p className="text-sm text-green-600">{createSuccess}</p>}
-                  <Button className="w-full" onClick={handleCreate} disabled={createLoading}>
-                    {createLoading ? "Creating…" : "Create Course"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-
-          {/* Admin: Assign Lecturer — separate button next to Create Course */}
-          {isAdmin && (
-            <Dialog onOpenChange={() => { setAssignError(null); setAssignSuccess(null) }}>
-              <DialogTrigger asChild>
-                <Button variant="outline">Assign Lecturer</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Assign Lecturer to Course</DialogTitle>
-                  <DialogDescription>
-                    Enter the Course ID and the Lecturer ID to assign. A course can only have one lecturer;
-                    this will replace any existing assignment.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Course ID</Label>
-                    <Input
-                      placeholder="e.g., a1b2c3d4"
-                      value={assignCourseId}
-                      onChange={(e) => setAssignCourseId(e.target.value)}
-                    />
-                    {/* Quick reference: list courses in a scrollable hint */}
-                    {myCourses.length > 0 && (
-                      <div className="rounded-md border bg-muted/40 p-2 max-h-32 overflow-y-auto">
-                        {myCourses.map((c) => (
-                          <button
-                            key={c.CourseID}
-                            type="button"
-                            onClick={() => setAssignCourseId(c.CourseID)}
-                            className="block w-full text-left text-xs px-1 py-0.5 hover:bg-muted rounded"
-                          >
-                            <span className="font-medium">{c.CourseCode}</span>{" "}
-                            <span className="text-muted-foreground">— {c.CourseID}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Lecturer ID</Label>
-                    <Input
-                      placeholder="e.g., lec-00001"
-                      value={assignLecturerId}
-                      onChange={(e) => setAssignLecturerId(e.target.value)}
-                    />
-                  </div>
-                  {assignError   && <p className="text-sm text-destructive">{assignError}</p>}
-                  {assignSuccess && <p className="text-sm text-green-600">{assignSuccess}</p>}
-                  <Button className="w-full" onClick={handleAssignLecturer} disabled={assignLoading}>
-                    {assignLoading ? "Assigning…" : "Assign Lecturer"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <>
+              <button className="btn btn-primary" onClick={() => setShowCreateDialog(true)}>
+                + Create Course
+              </button>
+              <button className="btn btn-secondary" onClick={() => setShowAssignDialog(true)}>
+                Assign Lecturer
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      {/* ── Search ── */}
-      <Input
-        placeholder="Search courses…"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        className="max-w-sm"
-      />
+      {/* Search */}
+      <div className="search-input" style={{ marginBottom: 'var(--space-6)' }}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          type="text"
+          placeholder="Search courses..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
 
-      {/* ── Course grid ── */}
+      {/* Course Grid */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-40 rounded-lg" />)}
+        <div className="courses-grid">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} style={{ height: '180px', borderRadius: 'var(--radius-lg)' }} />
+          ))}
         </div>
       ) : error ? (
-        <p className="text-sm text-muted-foreground italic">{error}</p>
+        <p className="text-muted">{error}</p>
       ) : displayCourses.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic py-8 text-center">No courses found.</p>
+        <div className="empty-state">
+          <svg className="empty-state-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
+          </svg>
+          <p className="empty-state-title">No courses found</p>
+          <p className="empty-state-desc">Try adjusting your search or add a new course.</p>
+        </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="courses-grid">
           {displayCourses.map((course) => {
             const enrolled = enrolledIds.has(course.CourseID)
             return (
-              <Link key={course.CourseID} to={`/dashboard/courses/${course.CourseID}`}>
-                <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={enrolled ? "default" : "secondary"}>{course.CourseCode}</Badge>
+              <Link key={course.CourseID} to={`/dashboard/courses/${course.CourseID}`} className="course-card">
+                <div className="card card-clickable">
+                  <div className="card-content">
+                    <div className="course-card-badges">
+                      <span className={`badge ${enrolled ? 'badge-primary' : 'badge-secondary'}`}>
+                        {course.CourseCode}
+                      </span>
                       {isAdmin && !course.LecturerID && (
-                        <Badge variant="destructive" className="text-xs">No Lecturer</Badge>
+                        <span className="badge badge-error">No Lecturer</span>
                       )}
                     </div>
-                    <CardTitle className="text-lg mt-2">{course.CourseName}</CardTitle>
-                    <CardDescription>
+                    <h3 className="course-card-title">{course.CourseName}</h3>
+                    <p className="course-card-lecturer">
                       {course.LecturerName
                         ? `Lecturer: ${course.LecturerName}`
                         : course.LecturerID
                         ? `Lecturer ID: ${course.LecturerID}`
                         : "No lecturer assigned"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground">ID: {course.CourseID}</p>
-                  </CardContent>
-                </Card>
+                    </p>
+                    <p className="course-card-id">ID: {course.CourseID}</p>
+                  </div>
+                </div>
               </Link>
             )
           })}
+        </div>
+      )}
+
+      {/* Enroll Dialog */}
+      {showEnrollDialog && (
+        <div className="dialog-overlay" onClick={() => setShowEnrollDialog(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <h2 className="dialog-title">Enroll in a Course</h2>
+              <p className="dialog-description">Enter the Course ID to enroll.</p>
+            </div>
+            <div className="dialog-body">
+              <div className="form-group">
+                <label className="form-label">Course ID</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g., a1b2c3d4"
+                  value={enrollCourseId}
+                  onChange={(e) => setEnrollCourseId(e.target.value)}
+                />
+              </div>
+              {enrollError && <p className="form-error mt-2">{enrollError}</p>}
+              {enrollSuccess && <p className="form-success mt-2">{enrollSuccess}</p>}
+            </div>
+            <div className="dialog-footer">
+              <button className="btn btn-secondary" onClick={() => setShowEnrollDialog(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleEnroll} disabled={enrollLoading}>
+                {enrollLoading ? "Enrolling..." : "Enroll"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Course Dialog */}
+      {showCreateDialog && (
+        <div className="dialog-overlay" onClick={() => setShowCreateDialog(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <h2 className="dialog-title">Create a New Course</h2>
+              <p className="dialog-description">Fill in the course details below.</p>
+            </div>
+            <div className="dialog-body">
+              <div className="form-group mb-4">
+                <label className="form-label">Course Name</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g., Database Management Systems"
+                  value={newCourse.CourseName}
+                  onChange={(e) => setNewCourse((p) => ({ ...p, CourseName: e.target.value }))}
+                />
+              </div>
+              <div className="form-group mb-4">
+                <label className="form-label">Course Code</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g., COMP3161"
+                  value={newCourse.CourseCode}
+                  onChange={(e) => setNewCourse((p) => ({ ...p, CourseCode: e.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">
+                  Lecturer ID <span className="form-hint">(optional - can assign later)</span>
+                </label>
+                <input
+                  className="form-input"
+                  placeholder="e.g., lec-00001"
+                  value={newCourse.LecturerID}
+                  onChange={(e) => setNewCourse((p) => ({ ...p, LecturerID: e.target.value }))}
+                />
+              </div>
+              {createError && <p className="form-error mt-2">{createError}</p>}
+              {createSuccess && <p className="form-success mt-2">{createSuccess}</p>}
+            </div>
+            <div className="dialog-footer">
+              <button className="btn btn-secondary" onClick={() => setShowCreateDialog(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleCreate} disabled={createLoading}>
+                {createLoading ? "Creating..." : "Create Course"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Lecturer Dialog */}
+      {showAssignDialog && (
+        <div className="dialog-overlay" onClick={() => setShowAssignDialog(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <h2 className="dialog-title">Assign Lecturer to Course</h2>
+              <p className="dialog-description">
+                Enter the Course ID and the Lecturer ID to assign. A course can only have one lecturer.
+              </p>
+            </div>
+            <div className="dialog-body">
+              <div className="form-group mb-4">
+                <label className="form-label">Course ID</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g., a1b2c3d4"
+                  value={assignCourseId}
+                  onChange={(e) => setAssignCourseId(e.target.value)}
+                />
+                {myCourses.length > 0 && (
+                  <div style={{ 
+                    marginTop: 'var(--space-2)', 
+                    padding: 'var(--space-2)', 
+                    background: 'var(--color-bg-tertiary)', 
+                    borderRadius: 'var(--radius-md)', 
+                    maxHeight: '120px', 
+                    overflowY: 'auto' 
+                  }}>
+                    {myCourses.map((c) => (
+                      <button
+                        key={c.CourseID}
+                        type="button"
+                        onClick={() => setAssignCourseId(c.CourseID)}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: 'var(--space-1) var(--space-2)',
+                          fontSize: '0.75rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--color-text-secondary)',
+                          cursor: 'pointer',
+                          borderRadius: 'var(--radius-sm)'
+                        }}
+                      >
+                        <strong>{c.CourseCode}</strong> - {c.CourseID}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Lecturer ID</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g., lec-00001"
+                  value={assignLecturerId}
+                  onChange={(e) => setAssignLecturerId(e.target.value)}
+                />
+              </div>
+              {assignError && <p className="form-error mt-2">{assignError}</p>}
+              {assignSuccess && <p className="form-success mt-2">{assignSuccess}</p>}
+            </div>
+            <div className="dialog-footer">
+              <button className="btn btn-secondary" onClick={() => setShowAssignDialog(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleAssignLecturer} disabled={assignLoading}>
+                {assignLoading ? "Assigning..." : "Assign Lecturer"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
