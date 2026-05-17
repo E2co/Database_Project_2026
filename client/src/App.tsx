@@ -24,9 +24,10 @@ function LoadingPage() {
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '100vh',
-      background: 'var(--color-bg-primary)',
-      color: 'var(--color-text-secondary)',
-      fontSize: '1rem'
+      background: 'var(--background)',
+      color: 'var(--foreground)',
+      fontSize: '1rem',
+      fontFamily: 'inherit'
     }}>
       Loading...
     </div>
@@ -48,15 +49,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// Public Route wrapper (redirect to dashboard if logged in)
+// Public Route wrapper - allows access to login/register even while loading
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
 
-  if (isLoading) {
-    return <LoadingPage />
-  }
-
-  if (user) {
+  // Only redirect if NOT loading AND user exists
+  // This allows the login page to show immediately
+  if (!isLoading && user) {
     return <Navigate to="/dashboard" replace />
   }
 
