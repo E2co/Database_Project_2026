@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import { authApi } from "@/api"
 import useAuth from "@/components/auth/auth-context"
 
@@ -133,6 +133,10 @@ export function LoginForm() {
             <p>
               Forgot your password?{" "}
               <button type="button">Reset it here</button>
+            </p>
+            <p>
+              New to OURVLE?{" "}
+              <Link to="/register">Create an account</Link>
             </p>
           </div>
         </div>
