@@ -1450,13 +1450,20 @@ def top_ten_students_report():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
-                    SELECT St.FirstName, St.LastName, St.Major, AVG(CAST(G.Grade AS Decimal (10,2))) AS AverageGrade
+                    SELECT 
+                        St.StudentID, St.FirstName, St.LastName, St.Major, ROUND(avg_grade, 2) AS AverageGrade
                     FROM Student St
-                    INNER JOIN Submission S ON St.StudentID = S.StudentID
-                    INNER JOIN Grade G ON G.SubmissionID = S.SubmissionID
-                    GROUP BY St.StudentID, St.FirstName, St.LastName, St.Major
+                    INNER JOIN (
+                        SELECT 
+                            S.StudentID,
+                            AVG(G.Grade) as avg_grade
+                        FROM Submission S
+                        INNER JOIN Grade G ON G.SubmissionID = S.SubmissionID
+                        WHERE G.Grade > 0
+                        GROUP BY S.StudentID
+                    ) StudentGrades ON St.StudentID = StudentGrades.StudentID
                     ORDER BY AverageGrade DESC
-                    LIMIT 10
+                    LIMIT 10;
                     """)
     students = cursor.fetchall()
     cursor.close()
