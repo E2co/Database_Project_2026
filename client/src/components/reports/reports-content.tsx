@@ -13,24 +13,27 @@ export function ReportsContent() {
   const [topTenEnrolled, setTopTenEnrolled] = useState<ReportCourse[]>([])
   const [topTenStudents, setTopTenStudents] = useState<ReportStudent[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        setError(null)
         const [c50, s5, l3, topE, topS] = await Promise.all([
-          reportsApi.coursesWithFiftyPlus(),
-          reportsApi.studentsWithFivePlus(),
-          reportsApi.lecturersWithThreePlus(),
-          reportsApi.topTenEnrolled(),
-          reportsApi.topTenGrades()
+          reportsApi.coursesWithFiftyPlus().catch(() => []),
+          reportsApi.studentsWithFivePlus().catch(() => []),
+          reportsApi.lecturersWithThreePlus().catch(() => []),
+          reportsApi.topTenEnrolled().catch(() => []),
+          reportsApi.topTenGrades().catch(() => []),
         ])
-        setCourses50(c50)
-        setStudents5(s5)
-        setLecturers3(l3)
-        setTopTenEnrolled(topE)
-        setTopTenStudents(topS)
+        setCourses50(Array.isArray(c50) ? c50 : [])
+        setStudents5(Array.isArray(s5) ? s5 : [])
+        setLecturers3(Array.isArray(l3) ? l3 : [])
+        setTopTenEnrolled(Array.isArray(topE) ? topE : [])
+        setTopTenStudents(Array.isArray(topS) ? topS : [])
       } catch (err) {
         console.error("Report fetch error:", err)
+        setError("Failed to load some reports. Please try again.")
       } finally {
         setLoading(false)
       }
@@ -137,6 +140,19 @@ export function ReportsContent() {
         </div>
       </div>
 
+      {error && (
+        <div style={{
+          padding: 'var(--space-4)',
+          background: 'var(--color-error-subtle)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: 'var(--radius-md)',
+          color: 'var(--color-error)',
+          marginBottom: 'var(--space-6)'
+        }}>
+          {error}
+        </div>
+      )}
+
       {/* Tab Content */}
       <div className="card">
         {activeTab === "courses-50" && (
@@ -146,26 +162,30 @@ export function ReportsContent() {
               <p className="card-description">All courses that have 50 or more enrolled students</p>
             </div>
             <div className="card-content">
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Course Code</th>
-                      <th>Course Name</th>
-                      <th style={{ textAlign: 'right' }}>Students</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {courses50.map((course) => (
-                      <tr key={course.CourseCode}>
-                        <td><span className="badge badge-outline">{course.CourseCode}</span></td>
-                        <td style={{ fontWeight: 500 }}>{course.CourseName}</td>
-                        <td style={{ textAlign: 'right' }}>{course.StudentCount}</td>
+              {courses50.length === 0 ? (
+                <p className="text-muted">No courses with 50+ students found.</p>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Course Code</th>
+                        <th>Course Name</th>
+                        <th style={{ textAlign: 'right' }}>Students</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {courses50.map((course, idx) => (
+                        <tr key={idx}>
+                          <td><span className="badge badge-outline">{course.CourseCode || course.course_code}</span></td>
+                          <td style={{ fontWeight: 500 }}>{course.CourseName || course.course_name}</td>
+                          <td style={{ textAlign: 'right' }}>{course.StudentCount || course.student_count || course.EnrolledStudents || course.enrolled_students}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -177,26 +197,36 @@ export function ReportsContent() {
               <p className="card-description">Students enrolled in 5 or more courses</p>
             </div>
             <div className="card-content">
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Major</th>
-                      <th style={{ textAlign: 'right' }}>Courses</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {students5.map((student) => (
-                      <tr key={`${student.FirstName}-${student.LastName}`}>
-                        <td style={{ fontWeight: 500 }}>{`${student.FirstName} ${student.LastName}`}</td>
-                        <td>{student.Major}</td>
-                        <td style={{ textAlign: 'right' }}><span className="badge badge-primary">{student.CourseCount}</span></td>
+              {students5.length === 0 ? (
+                <p className="text-muted">No students with 5+ courses found.</p>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Major</th>
+                        <th style={{ textAlign: 'right' }}>Courses</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {students5.map((student, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 500 }}>
+                            {`${student.FirstName || student.first_name} ${student.LastName || student.last_name}`}
+                          </td>
+                          <td>{student.Major || student.major}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className="badge badge-primary">
+                              {student.CourseCount || student.course_count || student.EnrolledCourses || student.enrolled_courses}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -208,26 +238,34 @@ export function ReportsContent() {
               <p className="card-description">Lecturers teaching 3 or more courses</p>
             </div>
             <div className="card-content">
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Department</th>
-                      <th style={{ textAlign: 'right' }}>Courses</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lecturers3.map((lecturer) => (
-                      <tr key={lecturer.Name}>
-                        <td style={{ fontWeight: 500 }}>{lecturer.Name}</td>
-                        <td>{lecturer.Department}</td>
-                        <td style={{ textAlign: 'right' }}><span className="badge badge-primary">{lecturer.CourseCount}</span></td>
+              {lecturers3.length === 0 ? (
+                <p className="text-muted">No lecturers with 3+ courses found.</p>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th style={{ textAlign: 'right' }}>Courses</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {lecturers3.map((lecturer, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 500 }}>{lecturer.Name || lecturer.name}</td>
+                          <td>{lecturer.Department || lecturer.department}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className="badge badge-primary">
+                              {lecturer.CourseCount || lecturer.course_count || lecturer.CoursesTaught || lecturer.courses_taught}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -239,28 +277,34 @@ export function ReportsContent() {
               <p className="card-description">Courses with the highest student enrollment</p>
             </div>
             <div className="card-content">
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '60px' }}>Rank</th>
-                      <th>Course Code</th>
-                      <th>Course Name</th>
-                      <th style={{ textAlign: 'right' }}>Students</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topTenEnrolled.map((course, index) => (
-                      <tr key={course.CourseCode}>
-                        <td><span className={`badge ${index < 3 ? 'badge-primary' : 'badge-secondary'}`}>#{index + 1}</span></td>
-                        <td><span className="badge badge-outline">{course.CourseCode}</span></td>
-                        <td style={{ fontWeight: 500 }}>{course.CourseName}</td>
-                        <td style={{ textAlign: 'right' }}>{course.StudentCount?.toLocaleString()}</td>
+              {topTenEnrolled.length === 0 ? (
+                <p className="text-muted">No enrollment data found.</p>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '60px' }}>Rank</th>
+                        <th>Course Code</th>
+                        <th>Course Name</th>
+                        <th style={{ textAlign: 'right' }}>Students</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {topTenEnrolled.map((course, index) => (
+                        <tr key={index}>
+                          <td><span className={`badge ${index < 3 ? 'badge-primary' : 'badge-secondary'}`}>#{index + 1}</span></td>
+                          <td><span className="badge badge-outline">{course.CourseCode || course.course_code}</span></td>
+                          <td style={{ fontWeight: 500 }}>{course.CourseName || course.course_name}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            {(course.StudentCount || course.student_count || course.EnrolledStudents || course.enrolled_students)?.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -272,30 +316,38 @@ export function ReportsContent() {
               <p className="card-description">Students with the highest grade averages</p>
             </div>
             <div className="card-content">
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '60px' }}>Rank</th>
-                      <th>Name</th>
-                      <th>Major</th>
-                      <th style={{ textAlign: 'right' }}>Average</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topTenStudents.map((student, index) => (
-                      <tr key={student.FirstName + student.LastName}>
-                        <td><span className={`badge ${index < 3 ? 'badge-primary' : 'badge-secondary'}`}>#{index + 1}</span></td>
-                        <td style={{ fontWeight: 500 }}>{`${student.FirstName} ${student.LastName}`}</td>
-                        <td>{student.Major}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 500, color: 'var(--color-success)' }}>
-                          {student.AverageGrade ? `${Number(student.AverageGrade).toFixed(1)}%` : "N/A"}
-                        </td>
+              {topTenStudents.length === 0 ? (
+                <p className="text-muted">No student grades found.</p>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '60px' }}>Rank</th>
+                        <th>Name</th>
+                        <th>Major</th>
+                        <th style={{ textAlign: 'right' }}>Average</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {topTenStudents.map((student, index) => (
+                        <tr key={index}>
+                          <td><span className={`badge ${index < 3 ? 'badge-primary' : 'badge-secondary'}`}>#{index + 1}</span></td>
+                          <td style={{ fontWeight: 500 }}>
+                            {`${student.FirstName || student.first_name} ${student.LastName || student.last_name}`}
+                          </td>
+                          <td>{student.Major || student.major}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 500, color: 'var(--color-success)' }}>
+                            {student.AverageGrade || student.average_grade 
+                              ? `${Number(student.AverageGrade || student.average_grade).toFixed(1)}%` 
+                              : "N/A"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}

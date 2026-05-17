@@ -85,15 +85,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const role = user?.role ?? "student"
-  const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "U"
-  const displayName = user?.firstName
-    ? `${user.firstName} ${user.lastName}`.trim()
-    : user?.email ?? "User"
+  const role = user?.Role ?? "student"
+  const initials = `${user?.FirstName?.[0] ?? ""}${user?.LastName?.[0] ?? ""}`.toUpperCase() || "U"
+  const displayName = user?.FirstName
+    ? `${user.FirstName} ${user.LastName}`.trim()
+    : user?.Email ?? "User"
 
   const visibleNav = NAV_ITEMS.filter((item) => item.roles.includes(role))
 
   const handleLogout = async () => {
+    setDropdownOpen(false)
     await logout()
     navigate("/")
   }
@@ -131,7 +132,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {user && (
           <div className="sidebar-role">
-            <span className="sidebar-role-badge">{user.role}</span>
+            <span className="sidebar-role-badge">{user.Role}</span>
           </div>
         )}
 
@@ -163,28 +164,53 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <button 
             className="sidebar-user-btn"
             onClick={() => setDropdownOpen(!dropdownOpen)}
+            aria-expanded={dropdownOpen}
+            aria-label="User menu"
           >
             <div className="sidebar-avatar">{initials}</div>
             <div className="sidebar-user-info">
               <div className="sidebar-user-name">{displayName}</div>
-              <div className="sidebar-user-role">{user?.role ?? ""}</div>
+              <div className="sidebar-user-role">{user?.Role ?? ""}</div>
             </div>
-            <svg className="sidebar-user-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className={`sidebar-user-chevron ${dropdownOpen ? 'open' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" />
             </svg>
           </button>
 
           {dropdownOpen && (
-            <div className="dropdown-content" style={{ bottom: 'calc(100% + 8px)', top: 'auto' }}>
+            <div className="dropdown-content dropdown-user">
               <div className="dropdown-header">
                 <div className="dropdown-header-name">{displayName}</div>
-                <div className="dropdown-header-email">{user?.email}</div>
+                <div className="dropdown-header-email">{user?.Email}</div>
               </div>
               <div className="dropdown-separator" />
-              <button className="dropdown-item">Profile Settings</button>
-              <button className="dropdown-item">Help &amp; Support</button>
+              <button className="dropdown-item">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                Profile Settings
+              </button>
+              <button className="dropdown-item">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
+                  <circle cx="12" cy="12" r="1" />
+                  <path d="M12 1v6m0 6v6" />
+                  <path d="M4.22 4.22l4.24 4.24m5.08 5.08l4.24 4.24" />
+                  <path d="M1 12h6m6 0h6" />
+                  <path d="M4.22 19.78l4.24-4.24m5.08-5.08l4.24-4.24" />
+                </svg>
+                Help &amp; Support
+              </button>
               <div className="dropdown-separator" />
-              <button className="dropdown-item danger" onClick={handleLogout}>
+              <button 
+                className="dropdown-item danger" 
+                onClick={handleLogout}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
                 Sign Out
               </button>
             </div>
