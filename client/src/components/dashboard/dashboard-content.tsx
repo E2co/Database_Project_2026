@@ -360,7 +360,7 @@ export function DashboardContent() {
           ) : (
             <div className="courses-grid">
               {courses.slice(0, 4).map((course) => (
-                <Link key={course.CourseID} to={`/dashboard/courses/${course.CourseID}`} className="course-card">
+                <Link key={course.CourseID} to={`/dashboard/content/${course.CourseID}`} className="course-card">
                   <div className="card card-clickable">
                     <div className="card-content">
                       <div className="course-card-badges">

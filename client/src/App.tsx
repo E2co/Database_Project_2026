@@ -106,7 +106,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/dashboard/courses/:courseId"
+        path="/content/:courseId"
         element={
           <ProtectedRoute>
             <DashboardLayout>

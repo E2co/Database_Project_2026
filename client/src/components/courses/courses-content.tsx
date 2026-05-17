@@ -1,16 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 import useAuth from "@/components/auth/auth-context"
 import { coursesApi } from "@/api"
 import type { Course } from "@/api"
+import { CourseDetailContent } from "./course-detail-content"
 
 function Skeleton({ style }: { style?: React.CSSProperties }) {
   return <div className="skeleton" style={style} />
 }
 
 export function CoursesContent() {
+  const { courseId } = useParams<{ courseId: string }>()
   const { user, isStudent, isLecturer, isAdmin } = useAuth()
 
   const [myCourses, setMyCourses] = useState<Course[]>([])
@@ -128,12 +130,17 @@ export function CoursesContent() {
     }
   }
 
+  // If courseId is present in URL, show course detail view
+  if (courseId) {
+    return <CourseDetailContent />
+  }
+
   return (
     <div>
       {/* Header */}
       <div className="page-header page-header-with-actions">
         <div>
-          <h1>{isAdmin ? "Courses" : "My Courses"}</h1>
+          <h1>{isAdmin || isStudent ? "Courses" : "My Courses"}</h1>
           <p>
             {isAdmin
               ? "Create and manage all courses"
