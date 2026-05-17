@@ -51,15 +51,27 @@ CACHE_TTL = {
     'content': 600,      # 10 minutes
 }
 
+# ─────────────────────────────────────────────
+#  CORS CONFIGURATION (FIXED)
+# ─────────────────────────────────────────────
+# Get frontend URL from environment and strip trailing slashes
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip('/')
+
+# Build the list of allowed origins
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+]
+if FRONTEND_URL:
+    ALLOWED_ORIGINS.append(FRONTEND_URL)
+
+print(f"DEBUG: CORS allowed origins: {ALLOWED_ORIGINS}")
+
 CORS(app,
      supports_credentials=True,
-     origins=[
-         "http://localhost:5173",
-         "http://127.0.0.1:5173",
-         "http://localhost:5174",
-         "http://127.0.0.1:5174",
-         os.getenv("FRONTEND_URL", "")
-     ])
+     origins=ALLOWED_ORIGINS)
 
 # ─────────────────────────────────────────────
 #  CACHE HELPER FUNCTIONS
@@ -228,16 +240,22 @@ def register_user():
         
         id = str(uuid.uuid4())[:8]
         hashed_password = generate_password_hash(user_password)
-        date_created = datetime.now(timezone.utc).date()
+
+        # If UserID not provided, generate one
+        if not user_id:
+            user_id = str(uuid.uuid4())[:8]
 
         cursor.execute("""
                     INSERT INTO User (ID, UserID, FirstName, LastName, Email, Role, Password, DateCreated)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (id, user_id, user_fname, user_lname, user_email, user_role, hashed_password, date_created))
+                    """, (id, user_id, user_fname, user_lname, user_email, user_role, hashed_password, datetime.now(timezone.utc)))
         conn.commit()
         cursor.close()
         conn.close()
         return jsonify({"message": "User registered successfully.", "ID": id}), 201
+    
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
@@ -258,38 +276,34 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-                    SELECT ID, UserID, Email, Password 
-                    FROM User 
+                    SELECT * FROM User 
                     WHERE Email = %s
                     """, (user_email,))
+        
         existing_user = cursor.fetchone()
-
         cursor.close()
         conn.close()
 
-        if not existing_user or not check_password_hash(existing_user[3], user_password):
+        if not existing_user or not check_password_hash(existing_user[6], user_password):
             return jsonify({"error": "Invalid username or password."}), 401
         
-        token = jwt.encode({
-            'user_id': existing_user[0], 
-            'exp': datetime.now(timezone.utc) + timedelta(hours=1)
+        token = jwt.encode(
+            {
+                'user_id': existing_user[0],
+                'user_email': existing_user[3],
+                'exp': datetime.now(timezone.utc) + timedelta(hours=24)
             }, app.config['SECRET_KEY'], algorithm="HS256")
         
-        if isinstance(token, bytes):
-            token = token.decode('utf-8')
-
-        response = jsonify({
-            "message": "User logged in successfully.", 
-            "token": token,
-            "ID": existing_user[0]  
-        })
-
-        response.set_cookie('jwt_token', token, httponly=True, secure=False, samesite='Lax', max_age=3600)
+        # Set httpOnly jwt_token cookie
+        response = jsonify({"message": "Login successful!", "token": token, "ID": existing_user[0]})
+        response.set_cookie('jwt_token', token, httponly=True, secure=True, samesite='Lax')
 
         return response, 200
-    
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
-        return jsonify({"message": f"Login failed: {str(e)}"}), 500
+        return jsonify({"error": f"Login failed: {str(e)}"}), 500
 
 @app.route('/logout', methods=["POST"])
 def logout():
@@ -305,14 +319,17 @@ def dashboard(current_user):
 @app.route('/me', methods=['GET'])
 @token_required
 def get_current_user(current_user):
-    return jsonify({
-        "ID":        current_user[0],
-        "UserID":    current_user[1],
-        "FirstName": current_user[2],
-        "LastName":  current_user[3],
-        "Email":     current_user[4],
-        "Role":      current_user[5],
-    }), 200
+    try:
+        return jsonify({
+            "ID":        current_user[0],
+            "UserID":    current_user[1],
+            "FirstName": current_user[2],
+            "LastName":  current_user[3],
+            "Email":     current_user[4],
+            "Role":      current_user[5],
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve user: {str(e)}"}), 500
 
 # ─────────────────────────────────────────────
 #  CREATE/REGISTER FOR COURSES (with cache invalidation)
@@ -1517,6 +1534,19 @@ def get_submissions(current_user, assignment_id):
         return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve submissions: {str(e)}"}), 500
+
+# ─────────────────────────────────────────────
+#  DEBUG ENDPOINT (Remove in production)
+# ─────────────────────────────────────────────
+@app.route('/debug/cors', methods=['GET', 'OPTIONS'])
+def debug_cors():
+    """Debug endpoint to check CORS configuration."""
+    return jsonify({
+        "frontend_url_env": os.getenv("FRONTEND_URL", "NOT SET"),
+        "request_origin": request.headers.get("Origin", "NOT SET"),
+        "allowed_origins": ALLOWED_ORIGINS,
+        "request_method": request.method
+    }), 200
 
 # ─────────────────────────────────────────────
 #  HEALTH CHECK ENDPOINT
