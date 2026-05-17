@@ -12,7 +12,6 @@ from flask_caching import Cache
 import valkey
 import json
 
-
 app = Flask(__name__)
 load_dotenv()
 
