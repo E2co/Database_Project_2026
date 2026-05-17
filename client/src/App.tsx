@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
+import { Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider } from "@/components/auth/auth-context"
 import useAuth from "@/components/auth/auth-context"
 
@@ -166,11 +166,9 @@ function AppRoutes() {
 // Main App Component
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </Router>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }
 
