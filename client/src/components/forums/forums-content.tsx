@@ -1,26 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  Dialog, DialogContent, DialogDescription,
-  DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select"
 import useAuth from "@/components/auth/auth-context.tsx"
 import { coursesApi, forumsApi, threadsApi } from "@/api.ts"
 import type { Course, Forum, Thread } from "@/api.ts"
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />
+function Skeleton({ style }: { style?: React.CSSProperties }) {
+  return <div className="skeleton" style={style} />
 }
 
 interface ForumWithCourse extends Forum {
@@ -31,32 +17,29 @@ interface ForumWithCourse extends Forum {
 export function ForumsContent() {
   const { user, isStudent, isLecturer } = useAuth()
 
-  const [courses,    setCourses]    = useState<Course[]>([])
-  const [forums,     setForums]     = useState<ForumWithCourse[]>([])
-  const [loading,    setLoading]    = useState(true)
+  const [courses, setCourses] = useState<Course[]>([])
+  const [forums, setForums] = useState<ForumWithCourse[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCourse, setSelectedCourse] = useState("all")
 
-  // Selected forum threads
-  const [selectedForum,  setSelectedForum]  = useState<ForumWithCourse | null>(null)
-  const [threads,        setThreads]        = useState<Thread[]>([])
+  const [selectedForum, setSelectedForum] = useState<ForumWithCourse | null>(null)
+  const [threads, setThreads] = useState<Thread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
 
-  // Reply box per top-level thread
   const [replyBoxes, setReplyBoxes] = useState<Record<number, string>>({})
-  const [replying,   setReplying]   = useState<Record<number, boolean>>({})
+  const [replying, setReplying] = useState<Record<number, boolean>>({})
 
-  // New thread dialog
+  const [showThreadDialog, setShowThreadDialog] = useState(false)
   const [newThread, setNewThread] = useState({ forumId: "", title: "", content: "" })
   const [threadSaving, setThreadSaving] = useState(false)
-  const [threadError,  setThreadError]  = useState<string | null>(null)
+  const [threadError, setThreadError] = useState<string | null>(null)
 
-  // New forum dialog (lecturers)
+  const [showForumDialog, setShowForumDialog] = useState(false)
   const [newForum, setNewForum] = useState({ courseId: "", title: "" })
   const [forumSaving, setForumSaving] = useState(false)
-  const [forumError,  setForumError]  = useState<string | null>(null)
+  const [forumError, setForumError] = useState<string | null>(null)
 
-  // Load courses → forums
   useEffect(() => {
     if (!user) return
     setLoading(true)
@@ -82,7 +65,6 @@ export function ForumsContent() {
       .finally(() => setLoading(false))
   }, [user, isStudent, isLecturer])
 
-  // Load threads when a forum is selected
   useEffect(() => {
     if (!selectedForum) return
     setThreadsLoading(true)
@@ -100,7 +82,6 @@ export function ForumsContent() {
     return matchSearch && matchCourse
   })
 
-  // Group filtered forums by course
   const grouped = filteredForums.reduce<Record<string, ForumWithCourse[]>>((acc, f) => {
     const key = `${f.courseCode}||${f.courseName}`
     acc[key] = [...(acc[key] ?? []), f]
@@ -113,12 +94,12 @@ export function ForumsContent() {
     setThreadError(null)
     try {
       await threadsApi.create(newThread.forumId, newThread.title, newThread.content)
-      // Refresh threads if this forum is open
       if (selectedForum && String(selectedForum.ForumID) === newThread.forumId) {
         const updated = await threadsApi.getByForum(selectedForum.ForumID)
         setThreads(updated)
       }
       setNewThread((p) => ({ ...p, title: "", content: "" }))
+      setShowThreadDialog(false)
     } catch (e: unknown) {
       setThreadError(e instanceof Error ? e.message : "Failed to create thread")
     } finally {
@@ -132,7 +113,6 @@ export function ForumsContent() {
     setForumError(null)
     try {
       await forumsApi.create(newForum.courseId, newForum.title)
-      // Refresh forums for that course
       const course = courses.find((c) => c.CourseID === newForum.courseId)
       if (course) {
         const fresh = await forumsApi.getByCourseCode(course.CourseCode)
@@ -145,6 +125,7 @@ export function ForumsContent() {
         ])
       }
       setNewForum({ courseId: "", title: "" })
+      setShowForumDialog(false)
     } catch (e: unknown) {
       setForumError(e instanceof Error ? e.message : "Failed to create forum")
     } finally {
@@ -170,223 +151,316 @@ export function ForumsContent() {
     }
   }
 
-  // Top-level threads (no parent)
   const topLevel = threads.filter((t) => t.Parent_ThreadID === null)
-  const repliesFor = (threadId: number) =>
-    threads.filter((t) => t.Parent_ThreadID === threadId)
+  const repliesFor = (threadId: number) => threads.filter((t) => t.Parent_ThreadID === threadId)
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="page-header page-header-with-actions">
         <div>
-          <h1 className="text-3xl font-bold">Forums</h1>
-          <p className="text-muted-foreground mt-1">Engage in course discussions and get help from peers</p>
+          <h1>Forums</h1>
+          <p>Engage in course discussions and get help from peers</p>
         </div>
-        <div className="flex gap-2">
-          {/* Create thread */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>+ New Thread</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create New Thread</DialogTitle>
-                <DialogDescription>Start a new discussion in one of your course forums.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Forum</Label>
-                  <Select value={newThread.forumId} onValueChange={(v) => setNewThread((p) => ({ ...p, forumId: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select a forum" /></SelectTrigger>
-                    <SelectContent>
-                      {forums.map((f) => (
-                        <SelectItem key={f.ForumID} value={String(f.ForumID)}>
-                          {f.courseCode} – {f.ForumTitle}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Thread Title</Label>
-                  <Input placeholder="Enter a descriptive title" value={newThread.title} onChange={(e) => setNewThread((p) => ({ ...p, title: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Content</Label>
-                  <Textarea placeholder="Write your post…" className="min-h-[120px]" value={newThread.content} onChange={(e) => setNewThread((p) => ({ ...p, content: e.target.value }))} />
-                </div>
-                {threadError && <p className="text-sm text-destructive">{threadError}</p>}
-                <Button className="w-full" onClick={handleCreateThread} disabled={threadSaving}>
-                  {threadSaving ? "Posting…" : "Create Thread"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Lecturer: create forum */}
+        <div className="page-actions">
+          <button className="btn btn-primary" onClick={() => setShowThreadDialog(true)}>
+            + New Thread
+          </button>
           {!isStudent && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline">+ New Forum</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create Forum</DialogTitle>
-                  <DialogDescription>Add a discussion forum to one of your courses.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Course</Label>
-                    <select className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                      value={newForum.courseId} onChange={(e) => setNewForum((p) => ({ ...p, courseId: e.target.value }))}>
-                      <option value="">Select course</option>
-                      {courses.map((c) => (
-                        <option key={c.CourseID} value={c.CourseID}>{c.CourseCode} – {c.CourseName}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Forum Title</Label>
-                    <Input value={newForum.title} onChange={(e) => setNewForum((p) => ({ ...p, title: e.target.value }))} />
-                  </div>
-                  {forumError && <p className="text-sm text-destructive">{forumError}</p>}
-                  <Button className="w-full" onClick={handleCreateForum} disabled={forumSaving}>
-                    {forumSaving ? "Creating…" : "Create Forum"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <button className="btn btn-secondary" onClick={() => setShowForumDialog(true)}>
+              + New Forum
+            </button>
           )}
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Input placeholder="Search forums…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="sm:max-w-xs" />
-        <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-          <SelectTrigger className="sm:w-[200px]"><SelectValue placeholder="Filter by course" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Courses</SelectItem>
-            {courses.map((c) => (
-              <SelectItem key={c.CourseID} value={c.CourseCode}>{c.CourseCode}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="search-input">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search forums..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select
+          className="form-input"
+          style={{ width: 'auto', minWidth: '180px' }}
+          value={selectedCourse}
+          onChange={(e) => setSelectedCourse(e.target.value)}
+        >
+          <option value="all">All Courses</option>
+          {courses.map((c) => (
+            <option key={c.CourseID} value={c.CourseCode}>{c.CourseCode}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Forum list */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="content-grid">
+        {/* Forum List */}
+        <div className="content-main">
           {loading ? (
-            [...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              {[...Array(3)].map((_, i) => <Skeleton key={i} style={{ height: '120px', borderRadius: 'var(--radius-lg)' }} />)}
+            </div>
           ) : Object.keys(grouped).length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No forums found.</p>
+            <div className="empty-state">
+              <p className="empty-state-desc">No forums found.</p>
+            </div>
           ) : (
-            Object.entries(grouped).map(([key, cForums]) => {
-              const [code, name] = key.split("||")
-              return (
-                <Card key={key}>
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <Badge>{code}</Badge>
-                      <CardTitle className="text-lg">{name}</CardTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+              {Object.entries(grouped).map(([key, cForums]) => {
+                const [code, name] = key.split("||")
+                return (
+                  <div key={key} className="card">
+                    <div className="card-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                        <span className="badge badge-primary">{code}</span>
+                        <h3 className="card-title" style={{ marginBottom: 0 }}>{name}</h3>
+                      </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {cForums.map((f) => (
-                      <div
-                        key={f.ForumID}
-                        onClick={() => setSelectedForum(f)}
-                        className={`flex items-center justify-between p-4 rounded-lg border transition-colors cursor-pointer ${
-                          selectedForum?.ForumID === f.ForumID ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                        }`}
-                      >
-                        <div>
-                          <p className="font-medium">{f.ForumTitle}</p>
-                          <p className="text-sm text-muted-foreground">Forum ID: {f.ForumID}</p>
+                    <div className="card-content">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                        {cForums.map((f) => (
+                          <button
+                            key={f.ForumID}
+                            onClick={() => setSelectedForum(f)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: 'var(--space-4)',
+                              borderRadius: 'var(--radius-md)',
+                              border: `1px solid ${selectedForum?.ForumID === f.ForumID ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                              background: selectedForum?.ForumID === f.ForumID ? 'var(--color-accent-subtle)' : 'var(--color-bg-tertiary)',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              width: '100%',
+                              transition: 'all var(--transition-fast)',
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 'var(--space-1)' }}>{f.ForumTitle}</p>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Forum ID: {f.ForumID}</p>
+                            </div>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-muted)' }}>
+                              <path d="m9 18 6-6-6-6" />
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Thread Panel */}
+        <div className="content-sidebar">
+          {selectedForum ? (
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">{selectedForum.ForumTitle}</h3>
+                <p className="card-description">{selectedForum.courseCode}</p>
+              </div>
+              <div className="card-content">
+                {threadsLoading ? (
+                  <Skeleton style={{ height: '96px' }} />
+                ) : topLevel.length === 0 ? (
+                  <p className="text-muted" style={{ fontSize: '0.875rem', textAlign: 'center', padding: 'var(--space-4)' }}>
+                    No threads yet. Start one!
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                    {topLevel.map((t) => (
+                      <div key={t.ThreadID} style={{ paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: 'var(--radius-full)',
+                            background: 'var(--color-accent-subtle)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: 'var(--color-accent-text)',
+                          }}>
+                            {String(t.Author).slice(0, 2).toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-primary)' }}>{t.Title ?? "(reply)"}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>{t.Content}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-disabled)', marginTop: 'var(--space-1)' }}>{t.CreatedDate}</p>
+                          </div>
                         </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-muted-foreground">
-                          <path d="m9 18 6-6-6-6" />
-                        </svg>
+
+                        {/* Replies */}
+                        {repliesFor(t.ThreadID).map((r) => (
+                          <div key={r.ThreadID} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)', marginLeft: 'var(--space-8)', marginTop: 'var(--space-2)' }}>
+                            <div style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: 'var(--radius-full)',
+                              background: 'var(--color-bg-elevated)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.625rem',
+                              fontWeight: 600,
+                              color: 'var(--color-text-muted)',
+                            }}>
+                              {String(r.Author).slice(0, 2).toUpperCase()}
+                            </div>
+                            <div style={{
+                              flex: 1,
+                              padding: 'var(--space-2) var(--space-3)',
+                              background: 'var(--color-bg-tertiary)',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: '0.75rem',
+                              color: 'var(--color-text-secondary)',
+                            }}>
+                              {r.Content}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Reply Box */}
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', marginLeft: 'var(--space-8)', marginTop: 'var(--space-2)' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Reply..."
+                            style={{ fontSize: '0.75rem', padding: 'var(--space-2)' }}
+                            value={replyBoxes[t.ThreadID] ?? ""}
+                            onChange={(e) => setReplyBoxes((p) => ({ ...p, [t.ThreadID]: e.target.value }))}
+                          />
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: 'var(--space-2)', fontSize: '0.75rem' }}
+                            disabled={replying[t.ThreadID]}
+                            onClick={() => handleReply(t.ThreadID)}
+                          >
+                            {replying[t.ThreadID] ? "..." : "Reply"}
+                          </button>
+                        </div>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
-              )
-            })
-          )}
-        </div>
-
-        {/* Thread panel */}
-        <div className="space-y-4">
-          {selectedForum ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{selectedForum.ForumTitle}</CardTitle>
-                <CardDescription>{selectedForum.courseCode}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {threadsLoading ? (
-                  <Skeleton className="h-24 w-full" />
-                ) : topLevel.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic">No threads yet. Start one!</p>
-                ) : (
-                  topLevel.map((t) => (
-                    <div key={t.ThreadID} className="space-y-2 pb-4 border-b last:border-0 last:pb-0">
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs">{String(t.Author).slice(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{t.Title ?? "(reply)"}</p>
-                          <p className="text-xs text-muted-foreground">{t.Content}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{t.CreatedDate}</p>
-                        </div>
-                      </div>
-
-                      {/* Replies */}
-                      {repliesFor(t.ThreadID).map((r) => (
-                        <div key={r.ThreadID} className="flex items-start gap-3 ml-8">
-                          <Avatar className="h-6 w-6">
-                            <AvatarFallback className="text-xs">{String(r.Author).slice(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 rounded-md bg-muted px-3 py-2 text-xs">{r.Content}</div>
-                        </div>
-                      ))}
-
-                      {/* Reply box */}
-                      <div className="flex gap-2 ml-8">
-                        <Input
-                          placeholder="Reply…"
-                          className="text-xs h-8"
-                          value={replyBoxes[t.ThreadID] ?? ""}
-                          onChange={(e) => setReplyBoxes((p) => ({ ...p, [t.ThreadID]: e.target.value }))}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs px-2"
-                          disabled={replying[t.ThreadID]}
-                          onClick={() => handleReply(t.ThreadID)}
-                        >
-                          {replying[t.ThreadID] ? "…" : "Reply"}
-                        </Button>
-                      </div>
-                    </div>
-                  ))
+                  </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ) : (
-            <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Select a forum to view its threads.
-              </CardContent>
-            </Card>
+            <div className="card">
+              <div className="card-content" style={{ textAlign: 'center', padding: 'var(--space-12)' }}>
+                <p className="text-muted">Select a forum to view its threads.</p>
+              </div>
+            </div>
           )}
         </div>
       </div>
+
+      {/* New Thread Dialog */}
+      {showThreadDialog && (
+        <div className="dialog-overlay" onClick={() => setShowThreadDialog(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <h2 className="dialog-title">Create New Thread</h2>
+              <p className="dialog-description">Start a new discussion in one of your course forums.</p>
+            </div>
+            <div className="dialog-body">
+              <div className="form-group mb-4">
+                <label className="form-label">Forum</label>
+                <select
+                  className="form-input"
+                  value={newThread.forumId}
+                  onChange={(e) => setNewThread((p) => ({ ...p, forumId: e.target.value }))}
+                >
+                  <option value="">Select a forum</option>
+                  {forums.map((f) => (
+                    <option key={f.ForumID} value={String(f.ForumID)}>{f.courseCode} - {f.ForumTitle}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group mb-4">
+                <label className="form-label">Thread Title</label>
+                <input
+                  className="form-input"
+                  placeholder="Enter a descriptive title"
+                  value={newThread.title}
+                  onChange={(e) => setNewThread((p) => ({ ...p, title: e.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Content</label>
+                <textarea
+                  className="form-input"
+                  placeholder="Write your post..."
+                  style={{ minHeight: '120px', resize: 'vertical' }}
+                  value={newThread.content}
+                  onChange={(e) => setNewThread((p) => ({ ...p, content: e.target.value }))}
+                />
+              </div>
+              {threadError && <p className="form-error mt-4">{threadError}</p>}
+            </div>
+            <div className="dialog-footer">
+              <button className="btn btn-secondary" onClick={() => setShowThreadDialog(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleCreateThread} disabled={threadSaving}>
+                {threadSaving ? "Posting..." : "Create Thread"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Forum Dialog */}
+      {showForumDialog && (
+        <div className="dialog-overlay" onClick={() => setShowForumDialog(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <h2 className="dialog-title">Create Forum</h2>
+              <p className="dialog-description">Add a discussion forum to one of your courses.</p>
+            </div>
+            <div className="dialog-body">
+              <div className="form-group mb-4">
+                <label className="form-label">Course</label>
+                <select
+                  className="form-input"
+                  value={newForum.courseId}
+                  onChange={(e) => setNewForum((p) => ({ ...p, courseId: e.target.value }))}
+                >
+                  <option value="">Select course</option>
+                  {courses.map((c) => (
+                    <option key={c.CourseID} value={c.CourseID}>{c.CourseCode} - {c.CourseName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Forum Title</label>
+                <input
+                  className="form-input"
+                  value={newForum.title}
+                  onChange={(e) => setNewForum((p) => ({ ...p, title: e.target.value }))}
+                />
+              </div>
+              {forumError && <p className="form-error mt-4">{forumError}</p>}
+            </div>
+            <div className="dialog-footer">
+              <button className="btn btn-secondary" onClick={() => setShowForumDialog(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleCreateForum} disabled={forumSaving}>
+                {forumSaving ? "Creating..." : "Create Forum"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
