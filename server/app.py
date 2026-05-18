@@ -1094,9 +1094,21 @@ def retrieve_assignments(course_id):
         cursor.close()
         conn.close()
 
+        # Convert date objects to strings for JSON serialization
+        for assignment in assignments:
+            if assignment.get('DueDate'):
+                # If DueDate is a date object, convert to ISO string
+                if hasattr(assignment['DueDate'], 'isoformat'):
+                    assignment['DueDate'] = assignment['DueDate'].isoformat()
+                # If it's already a string, leave it
+                elif isinstance(assignment['DueDate'], str):
+                    pass
+                else:
+                    assignment['DueDate'] = str(assignment['DueDate'])
+
         if assignments:
             if redis_client:
-                redis_client.setex(cache_key, CACHE_TTL['assignments'], json.dumps(assignments))
+                redis_client.setex(cache_key, CACHE_TTL['assignments'], json.dumps(assignments, default=str))
             return jsonify(assignments), 200
         else:
             return jsonify({"error": "No assignments found for this course."}), 404
@@ -1161,7 +1173,7 @@ def create_assignment(current_user, course_id):
             "AssignmentID": assignment_id,
             "CourseID": course_id,
             "Title": title,
-            "DueDate": due_date
+            "DueDate": due_date  # Return as string
         }), 201
 
     except mysql.connector.Error as e:
@@ -1514,7 +1526,7 @@ def get_submissions(current_user, assignment_id):
                 U.FirstName,
                 U.LastName,
                 U.Email,
-                S.FilePath,
+                S.SubmissionURL,
                 S.SubmittedAt,
                 G.Grade,
                 G.GradeID
@@ -1529,8 +1541,16 @@ def get_submissions(current_user, assignment_id):
         cursor.close()
         conn.close()
 
+        # Convert datetime objects to strings
+        for submission in submissions:
+            if submission.get('SubmittedAt'):
+                if hasattr(submission['SubmittedAt'], 'isoformat'):
+                    submission['SubmittedAt'] = submission['SubmittedAt'].isoformat()
+                else:
+                    submission['SubmittedAt'] = str(submission['SubmittedAt'])
+
         if redis_client:
-            redis_client.setex(cache_key, CACHE_TTL['assignments'], json.dumps(submissions))
+            redis_client.setex(cache_key, CACHE_TTL['assignments'], json.dumps(submissions, default=str))
         
         return jsonify(submissions), 200
 
