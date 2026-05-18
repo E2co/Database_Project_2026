@@ -980,12 +980,29 @@ def retrieve_course_content(course_id):
         cursor.close()
         conn.close()
 
+        # Convert date objects to strings for JSON serialization
+        for item in content:
+            if item.get('UploadDate'):
+                if hasattr(item['UploadDate'], 'isoformat'):
+                    item['UploadDate'] = item['UploadDate'].isoformat()
+                elif isinstance(item['UploadDate'], str):
+                    pass
+                else:
+                    item['UploadDate'] = str(item['UploadDate'])
+
+            # Ensure ContentURL is properly named
+            if 'ContentURL' not in item and 'URL' in item:
+                item['ContentURL'] = item['URL']
+            elif 'ContentURL' not in item:
+                item['ContentURL'] = ""
+
         if content:
             if redis_client:
-                redis_client.setex(cache_key, CACHE_TTL['content'], json.dumps(content))
+                redis_client.setex(cache_key, CACHE_TTL['content'], json.dumps(content, default=str))
             return jsonify(content), 200
         else:
-            return jsonify({"error": "No content found for this course."}), 404
+            # Return empty array instead of error - content is optional
+            return jsonify([]), 200
 
     except mysql.connector.Error as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
@@ -1037,7 +1054,7 @@ def add_course_content(current_user, course_id):
         date_uploaded = datetime.now(timezone.utc).date()
 
         cursor.execute("""
-            INSERT INTO Course_Content (ContentID, CourseID, SectionTitle, ContentType, ContentURL, UploadedBy, DateUploaded)
+            INSERT INTO Course_Content (ContentID, CourseID, SectionTitle, ContentType, URL, LecturerID, UploadDate)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (content_id, course_id, section_title, content_type, content_url, lecturer_id, date_uploaded))
 
