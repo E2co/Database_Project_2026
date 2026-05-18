@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Link, useParams } from "react-router-dom"
 import useAuth from "@/components/auth/auth-context.tsx"
-import { contentApi, membersApi, forumsApi, assignmentsApi, calendarApi } from "@/api.ts"
+import { coursesApi, contentApi, membersApi, forumsApi, assignmentsApi, calendarApi } from "@/api.ts"
 import type { CourseContent, Member, Forum, Assignment, CalendarEvent } from "@/api.ts"
 
 interface Course {
@@ -45,27 +45,51 @@ export function CourseDetailContent() {
     if (!courseId) return
     setLoading(true)
     try {
-      const { BASE_URL } = await import("@/api")
-      const res = await fetch(`${BASE_URL}/courses/retrieve`, { credentials: "include" })
-      if (!res.ok) throw new Error("Failed to load courses")
-      const all: Course[] = await res.json()
-      const found = all.find((c) => c.CourseID == courseId) ?? null
+      console.log("Loading course details for courseId:", courseId)
+      
+      // Load all courses to find the one we need (and get CourseCode)
+      const allCourses = await coursesApi.getAll()
+      const found = allCourses.find((c) => c.CourseID === courseId) ?? null
 
       if (!found) {
+        console.log("Course not found:", courseId)
         setLoading(false)
         return
       }
+
+      console.log("Found course:", found)
       setCourse(found)
 
-      await Promise.all([
-        contentApi.getByCourse(courseId).then(setContent).catch(() => {}),
-        membersApi.getByCourseCode(found.CourseCode).then(setMembers).catch(() => {}),
-        forumsApi.getByCourseCode(found.CourseCode).then(setForums).catch(() => {}),
-        assignmentsApi.getByCourse(courseId).then(setAssignments).catch(() => {}),
-        calendarApi.getByCourseCode(found.CourseCode).then(setEvents).catch(() => {}),
+      // Load all related data in parallel
+      // Each API call uses the request() wrapper which handles authentication
+      const results = await Promise.allSettled([
+        contentApi.getByCourse(courseId),
+        membersApi.getByCourseCode(found.CourseCode),
+        forumsApi.getByCourseCode(found.CourseCode),
+        assignmentsApi.getByCourse(courseId),
+        calendarApi.getByCourseCode(found.CourseCode),
       ])
-    } catch {
-      // Handle error silently
+
+      // Handle results and log what we got
+      results.forEach((result, index) => {
+        const names = ["content", "members", "forums", "assignments", "events"]
+        if (result.status === "fulfilled") {
+          console.log(`${names[index]} loaded:`, result.value?.length || 0, "items")
+        } else {
+          console.error(`${names[index]} failed:`, result.reason)
+        }
+      })
+
+      // Set state from results
+      if (results[0].status === "fulfilled") setContent(results[0].value || [])
+      if (results[1].status === "fulfilled") setMembers(results[1].value || [])
+      if (results[2].status === "fulfilled") setForums(results[2].value || [])
+      if (results[3].status === "fulfilled") setAssignments(results[3].value || [])
+      if (results[4].status === "fulfilled") setEvents(results[4].value || [])
+
+      console.log("All course data loaded successfully")
+    } catch (error) {
+      console.error("Failed to load course details:", error)
     } finally {
       setLoading(false)
     }
@@ -182,7 +206,7 @@ export function CourseDetailContent() {
                 fontWeight: 500,
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                whiteSpace: 'nowrap',
+                transition: 'all var(--transition-fast)',
               }}
             >
               {tab.label}
@@ -191,81 +215,37 @@ export function CourseDetailContent() {
         </div>
       </div>
 
-      {/* Tab Content */}
+      {/* Content Tab */}
       {activeTab === "content" && (
         <div>
           {isLecturer && (
-            <button className="btn btn-primary mb-4" onClick={() => setShowContentDialog(true)}>
+            <button className="btn btn-primary" onClick={() => setShowContentDialog(true)} style={{ marginBottom: 'var(--space-4)' }}>
               + Add Content
             </button>
           )}
 
-          {Object.keys(sections).length === 0 ? (
+          {content.length === 0 ? (
             <p className="text-muted">No content available yet.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               {Object.entries(sections).map(([section, items]) => (
                 <div key={section} className="card">
-                  <button
-                    onClick={() => toggleSection(section)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: 'var(--space-4)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      borderBottom: expandedSections.has(section) ? '1px solid var(--color-border-subtle)' : 'none',
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{section}</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{ 
-                        color: 'var(--color-text-muted)',
-                        transform: expandedSections.has(section) ? 'rotate(180deg)' : 'none',
-                        transition: 'transform var(--transition-fast)',
-                      }}
-                    >
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
+                  <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => toggleSection(section)}>
+                    <h3 className="card-title">{section}</h3>
+                    <p className="card-description">{items.length} items</p>
+                  </div>
                   {expandedSections.has(section) && (
-                    <div style={{ padding: 'var(--space-4)' }}>
+                    <div className="card-content">
                       {items.map((item) => (
-                        <a
-                          key={item.ContentID}
-                          href={item.ContentURL}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 'var(--space-3)',
-                            padding: 'var(--space-3)',
-                            borderRadius: 'var(--radius-md)',
-                            marginBottom: 'var(--space-2)',
-                            background: 'var(--color-bg-tertiary)',
-                            textDecoration: 'none',
-                          }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-accent)' }}>
-                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                          </svg>
-                          <span style={{ flex: 1, fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{item.ContentURL}</span>
-                          <span className="badge badge-outline">{item.ContentType}</span>
-                        </a>
+                        <div key={item.ContentID} style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--color-border-subtle)' }}>
+                          <h4 style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>{item.SectionTitle}</h4>
+                          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                            <span className="badge badge-secondary">{item.ContentType}</span>
+                            <a href={item.ContentURL || item.URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent-text)' }}>
+                              View
+                            </a>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -276,10 +256,11 @@ export function CourseDetailContent() {
         </div>
       )}
 
+      {/* Assignments Tab */}
       {activeTab === "assignments" && (
         <div>
           {isLecturer && (
-            <button className="btn btn-primary mb-4" onClick={() => setShowAssignDialog(true)}>
+            <button className="btn btn-primary" onClick={() => setShowAssignDialog(true)} style={{ marginBottom: 'var(--space-4)' }}>
               + Create Assignment
             </button>
           )}
@@ -291,15 +272,13 @@ export function CourseDetailContent() {
               {assignments.map((a) => (
                 <div key={a.AssignmentID} className="card">
                   <div className="card-header">
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <div>
-                        <h3 className="card-title">{a.Title}</h3>
-                        <p className="card-description">{a.Description}</p>
-                      </div>
-                      <span className="badge badge-outline">
-                        Due {new Date(a.DueDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                      </span>
+                    <div>
+                      <h3 className="card-title">{a.Title}</h3>
+                      <p className="card-description">{a.Description}</p>
                     </div>
+                    <span className="badge badge-outline">
+                      Due {new Date(a.DueDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                    </span>
                   </div>
                   {isStudent && (
                     <div className="card-content">
@@ -313,6 +292,7 @@ export function CourseDetailContent() {
         </div>
       )}
 
+      {/* Members Tab */}
       {activeTab === "members" && (
         <div className="card">
           <div className="card-header">
@@ -353,6 +333,7 @@ export function CourseDetailContent() {
         </div>
       )}
 
+      {/* Forums Tab */}
       {activeTab === "forums" && (
         <div>
           {forums.length === 0 ? (
@@ -372,6 +353,7 @@ export function CourseDetailContent() {
         </div>
       )}
 
+      {/* Calendar Tab */}
       {activeTab === "calendar" && (
         <div className="card">
           <div className="card-header">
