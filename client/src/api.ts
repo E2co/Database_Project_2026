@@ -221,7 +221,7 @@ export interface CourseContent {
 
 export const contentApi = {
   getByCourse: (courseId: string) =>
-    request<CourseContent[]>(`/content/${courseId}`),
+    request<CourseContent[]>(`/dashboard/content/${courseId}`),
 
   /**
    * POST /courses/content/<course_id>  🔒 lecturer only
