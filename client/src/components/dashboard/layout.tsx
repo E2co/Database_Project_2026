@@ -80,7 +80,7 @@ const NAV_ITEMS = [
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { user, logout, isAdmin } = useAuth()
+  const { user, logout, isAdmin, isStudent } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -142,7 +142,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               // Determine label based on role and item
               let label = item.name
               if (item.id === "courses") {
-                label = isAdmin ? "Courses" : "My Courses"
+                label = isAdmin || isStudent ? "Courses" : "My Courses"
               }
               
               const isActive = pathname === item.href

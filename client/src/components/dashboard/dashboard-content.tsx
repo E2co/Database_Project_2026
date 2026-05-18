@@ -347,7 +347,7 @@ export function DashboardContent() {
 
           {loadingCourses ? (
             <div className="courses-grid">
-              {[...Array(4)].map((_, i) => (
+              {[...Array(6)].map((_, i) => (
                 <div key={i} className="skeleton" style={{ height: '160px', borderRadius: 'var(--radius-lg)' }} />
               ))}
             </div>
@@ -359,7 +359,7 @@ export function DashboardContent() {
             </div>
           ) : (
             <div className="courses-grid">
-              {courses.slice(0, 4).map((course) => (
+              {courses.slice(0, 6).map((course) => (
                 <Link key={course.CourseID} to={`/dashboard/content/${course.CourseID}`} className="course-card">
                   <div className="card card-clickable">
                     <div className="card-content">

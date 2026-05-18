@@ -11,6 +11,7 @@ import RegisterForm from "@/components/auth/register-form"
 import DashboardLayout from "@/components/dashboard/layout"
 import DashboardContent from "@/components/dashboard/dashboard-content"
 import CoursesContent from "@/components/courses/courses-content"
+import CourseDetailContent from "@/components/courses/course-detail-content"
 import CalendarContent from "@/components/calendar/calendar-content"
 import AssignmentsContent from "@/components/assignments/assignments-content"
 import ForumsContent from "@/components/forums/forums-content"
@@ -106,11 +107,11 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/content/:courseId"
+        path="/dashboard/content/:courseId"
         element={
           <ProtectedRoute>
             <DashboardLayout>
-              <CoursesContent />
+              <CourseDetailContent />
             </DashboardLayout>
           </ProtectedRoute>
         }
